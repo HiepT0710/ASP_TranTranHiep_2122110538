@@ -6,6 +6,7 @@ namespace TranTranHiep_2122110538.Models
     public class Contract
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
 
         [Required]

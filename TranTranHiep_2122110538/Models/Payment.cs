@@ -6,6 +6,7 @@ namespace TranTranHiep_2122110538.Models
     public class Payment
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
 
         public int InvoiceId { get; set; }
