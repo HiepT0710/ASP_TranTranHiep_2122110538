@@ -1,0 +1,27 @@
+@{
+    ViewData["Title"] = "Trang chủ";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h1 class="h3 mb-3">Chào mừng — Food Order</h1>
+                <p class="text-secondary mb-4">
+                    Đây là <strong>trang giao diện Razor</strong> (MVC). Phần nghiệp vụ chính đang gọi qua <strong>API JSON</strong>; bạn có thể thử từ Swagger.
+                </p>
+                <div class="d-grid gap-2 d-sm-flex">
+                    <a class="btn btn-success" href="/swagger" target="_blank">Mở Swagger — thử API</a>
+                    <a class="btn btn-outline-secondary" href="https://localhost:7187/swagger" target="_blank" rel="noopener">HTTPS (nếu dùng profile https)</a>
+                </div>
+                <hr class="my-4" />
+                <h2 class="h6 text-muted">Gợi ý URL khi chạy local</h2>
+                <ul class="small mb-0">
+                    <li><strong>HTTP:</strong> <code>http://localhost:5208/</code></li>
+                    <li><strong>HTTPS:</strong> <code>https://localhost:7187/</code></li>
+                    <li>Swagger: thêm <code>/swagger</code> sau địa chỉ trên.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

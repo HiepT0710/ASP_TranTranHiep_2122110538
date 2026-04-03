@@ -1,6 +1,59 @@
-@TranTranHiep_2122110538_HostAddress = http://localhost:5208
+@host = http://localhost:5208
 
-GET {{TranTranHiep_2122110538_HostAddress}}/weatherforecast/
-Accept: application/json
+### Trang chủ
+GET {{host}}/
 
-###
+### Đăng ký Seller (quán Pending — chờ Admin duyệt)
+POST {{host}}/Account/RegisterSeller
+Content-Type: application/json
+
+{
+  "username": "shop2",
+  "password": "Shop2@123",
+  "restaurantName": "Quán phở 2",
+  "address": "Hà Nội",
+  "phone": "0900111222",
+  "fullName": "Chủ quán 2"
+}
+
+### Đăng nhập khách
+POST {{host}}/Account/Login
+Content-Type: application/json
+
+{
+  "username": "user",
+  "password": "User@123"
+}
+
+### Đăng nhập Seller (seller / Seller@123)
+POST {{host}}/Account/Login
+Content-Type: application/json
+
+{
+  "username": "seller",
+  "password": "Seller@123"
+}
+
+### Đăng nhập Admin
+POST {{host}}/Account/Login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "Admin@123"
+}
+
+### Món từ quán đã duyệt
+GET {{host}}/Food/Index?page=1&pageSize=8&restaurantId=1
+
+### Admin — thống kê (cần cookie Admin)
+GET {{host}}/Admin/Statistics/Summary
+
+### Admin — duyệt quán
+POST {{host}}/Admin/Restaurants/Approve/1
+
+### Seller — đơn của quán (cần cookie Seller)
+GET {{host}}/Seller/Orders/Index
+
+### Swagger
+GET {{host}}/swagger

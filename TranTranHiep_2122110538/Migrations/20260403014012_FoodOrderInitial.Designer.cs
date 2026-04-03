@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TranTranHiep_2122110538.Data;
 
@@ -11,9 +12,11 @@ using TranTranHiep_2122110538.Data;
 namespace TranTranHiep_2122110538.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260403014012_FoodOrderInitial")]
+    partial class FoodOrderInitial
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -39,12 +42,7 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<int>("RestaurantId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("RestaurantId");
 
                     b.ToTable("Categories");
                 });
@@ -80,14 +78,9 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("RestaurantId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
-
-                    b.HasIndex("RestaurantId");
 
                     b.ToTable("Foods");
                 });
@@ -111,9 +104,6 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<int>("RestaurantId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -127,8 +117,6 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("RestaurantId");
 
                     b.HasIndex("UserId");
 
@@ -163,43 +151,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.HasIndex("OrderId");
 
                     b.ToTable("OrderDetails");
-                });
-
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.Restaurant", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Address")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("OwnerId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OwnerId")
-                        .IsUnique();
-
-                    b.ToTable("Restaurants");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.User", b =>
@@ -252,17 +203,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.Category", b =>
-                {
-                    b.HasOne("TranTranHiep_2122110538.Models.Restaurant", "Restaurant")
-                        .WithMany("Categories")
-                        .HasForeignKey("RestaurantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Restaurant");
-                });
-
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Food", b =>
                 {
                     b.HasOne("TranTranHiep_2122110538.Models.Category", "Category")
@@ -271,32 +211,16 @@ namespace TranTranHiep_2122110538.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("TranTranHiep_2122110538.Models.Restaurant", "Restaurant")
-                        .WithMany("Foods")
-                        .HasForeignKey("RestaurantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Category");
-
-                    b.Navigation("Restaurant");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Order", b =>
                 {
-                    b.HasOne("TranTranHiep_2122110538.Models.Restaurant", "Restaurant")
-                        .WithMany("Orders")
-                        .HasForeignKey("RestaurantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("TranTranHiep_2122110538.Models.User", "User")
                         .WithMany("Orders")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("Restaurant");
 
                     b.Navigation("User");
                 });
@@ -320,17 +244,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.Restaurant", b =>
-                {
-                    b.HasOne("TranTranHiep_2122110538.Models.User", "Owner")
-                        .WithOne("OwnedRestaurant")
-                        .HasForeignKey("TranTranHiep_2122110538.Models.Restaurant", "OwnerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Owner");
-                });
-
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Category", b =>
                 {
                     b.Navigation("Foods");
@@ -346,20 +259,9 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("OrderDetails");
                 });
 
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.Restaurant", b =>
-                {
-                    b.Navigation("Categories");
-
-                    b.Navigation("Foods");
-
-                    b.Navigation("Orders");
-                });
-
             modelBuilder.Entity("TranTranHiep_2122110538.Models.User", b =>
                 {
                     b.Navigation("Orders");
-
-                    b.Navigation("OwnedRestaurant");
                 });
 #pragma warning restore 612, 618
         }
