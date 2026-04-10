@@ -8,10 +8,11 @@ using TranTranHiep_2122110538.Infrastructure;
 using TranTranHiep_2122110538.Models;
 using TranTranHiep_2122110538.Services;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 
@@ -78,7 +79,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
-    await DbInitializer.SeedAsync(db, hasher);
+    // await DbInitializer.SeedAsync(db, hasher);
 }
 
 app.MapControllerRoute(
