@@ -30,7 +30,38 @@ public class StatisticsController : Controller
         var restaurantsPending = await _db.Restaurants.CountAsync(r => r.Status == RestaurantStatuses.Pending);
         var foods = await _db.Foods.CountAsync();
         var orders = await _db.Orders.CountAsync();
-        var revenue = await _db.Orders.Where(o => o.Status == OrderStatuses.Completed).SumAsync(o => (decimal?)o.TotalAmount) ?? 0;
+        var revenue = await _db.Orders
+            .Where(o => o.Status == OrderStatuses.Completed && o.PaymentStatus != PaymentStatuses.Refunded)
+            .SumAsync(o => (decimal?)o.TotalAmount) ?? 0;
+
+        var refunds = await _db.Orders.CountAsync(o => o.PaymentStatus == PaymentStatuses.Refunded);
+
+        var ordersByStatus = await _db.Orders.AsNoTracking()
+            .GroupBy(o => o.Status)
+            .Select(g => new { status = g.Key, count = g.Count() })
+            .ToListAsync();
+
+        var sixMonthsAgo = DateTime.UtcNow.Date.AddMonths(-6);
+        var recentOrders = await _db.Orders.AsNoTracking()
+            .Where(o => o.OrderDate >= sixMonthsAgo)
+            .Select(o => new { o.OrderDate, o.Status, o.TotalAmount, o.PaymentStatus })
+            .ToListAsync();
+
+        var ordersByMonth = recentOrders
+            .GroupBy(o => new { o.OrderDate.Year, o.OrderDate.Month })
+            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+            .Select(g => new
+            {
+                year = g.Key.Year,
+                month = g.Key.Month,
+                orderCount = g.Count(),
+                revenueCompleted = g
+                    .Where(x => x.Status == OrderStatuses.Completed && x.PaymentStatus != PaymentStatuses.Refunded)
+                    .Sum(x => x.TotalAmount)
+            })
+            .ToList();
+
+        var reviewsCount = await _db.FoodReviews.CountAsync();
 
         return Ok(new
         {
@@ -42,7 +73,11 @@ public class StatisticsController : Controller
             restaurantsPending,
             foods,
             orders,
-            revenueCompletedOrders = revenue
+            revenueCompletedOrders = revenue,
+            refundedOrdersCount = refunds,
+            reviewsCount,
+            ordersByStatus,
+            ordersByMonthLast6Months = ordersByMonth
         });
     }
 }

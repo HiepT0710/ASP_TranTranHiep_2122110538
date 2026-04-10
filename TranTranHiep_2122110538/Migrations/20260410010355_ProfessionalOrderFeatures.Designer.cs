@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TranTranHiep_2122110538.Data;
 
@@ -11,9 +12,11 @@ using TranTranHiep_2122110538.Data;
 namespace TranTranHiep_2122110538.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410010355_ProfessionalOrderFeatures")]
+    partial class ProfessionalOrderFeatures
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,36 +24,6 @@ namespace TranTranHiep_2122110538.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.CartItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("FoodId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FoodId");
-
-                    b.HasIndex("UserId", "FoodId")
-                        .IsUnique();
-
-                    b.ToTable("CartItems");
-                });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Category", b =>
                 {
@@ -111,9 +84,6 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("RestaurantId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StockQuantity")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -276,37 +246,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.ToTable("OrderDetails");
                 });
 
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.OrderMessage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<int>("OrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("OrderMessages");
-                });
-
             modelBuilder.Entity("TranTranHiep_2122110538.Models.OrderPayment", b =>
                 {
                     b.Property<int>("Id")
@@ -399,45 +338,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.ToTable("OrderStatusHistories");
                 });
 
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.PushSubscription", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Auth")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Endpoint")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("nvarchar(2048)");
-
-                    b.Property<string>("P256dh")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Endpoint")
-                        .IsUnique();
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("PushSubscriptions");
-                });
-
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Restaurant", b =>
                 {
                     b.Property<int>("Id")
@@ -523,25 +423,6 @@ namespace TranTranHiep_2122110538.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
-                });
-
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.CartItem", b =>
-                {
-                    b.HasOne("TranTranHiep_2122110538.Models.Food", "Food")
-                        .WithMany()
-                        .HasForeignKey("FoodId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("TranTranHiep_2122110538.Models.User", "User")
-                        .WithMany("CartItems")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Food");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Category", b =>
@@ -639,25 +520,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.OrderMessage", b =>
-                {
-                    b.HasOne("TranTranHiep_2122110538.Models.Order", "Order")
-                        .WithMany("OrderMessages")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("TranTranHiep_2122110538.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Order");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("TranTranHiep_2122110538.Models.OrderPayment", b =>
                 {
                     b.HasOne("TranTranHiep_2122110538.Models.Order", "Order")
@@ -685,17 +547,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Actor");
 
                     b.Navigation("Order");
-                });
-
-            modelBuilder.Entity("TranTranHiep_2122110538.Models.PushSubscription", b =>
-                {
-                    b.HasOne("TranTranHiep_2122110538.Models.User", "User")
-                        .WithMany("PushSubscriptions")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Restaurant", b =>
@@ -727,8 +578,6 @@ namespace TranTranHiep_2122110538.Migrations
 
                     b.Navigation("OrderDetails");
 
-                    b.Navigation("OrderMessages");
-
                     b.Navigation("Payments");
 
                     b.Navigation("StatusHistories");
@@ -745,8 +594,6 @@ namespace TranTranHiep_2122110538.Migrations
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.User", b =>
                 {
-                    b.Navigation("CartItems");
-
                     b.Navigation("FoodReviews");
 
                     b.Navigation("OrderStatusHistoriesAsActor");
@@ -754,8 +601,6 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Orders");
 
                     b.Navigation("OwnedRestaurant");
-
-                    b.Navigation("PushSubscriptions");
                 });
 #pragma warning restore 612, 618
         }

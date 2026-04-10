@@ -12,4 +12,7 @@ public static class OrderStatuses
 
     /// <summary>Trạng thái Seller được phép gán khi cập nhật đơn của quán mình.</summary>
     public static readonly string[] SellerAssignable = { Preparing, Delivering, Completed };
+
+    /// <summary>Khách được phép hủy: chỉ khi đơn còn Pending (quán chưa chuyển sang Đang chuẩn bị).</summary>
+    public static readonly string[] CustomerCancellable = { Pending };
 }

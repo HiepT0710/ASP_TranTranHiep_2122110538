@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using TranTranHiep_2122110538.Data;
 using TranTranHiep_2122110538.Infrastructure;
 using TranTranHiep_2122110538.Models;
+using TranTranHiep_2122110538.Services;
 using TranTranHiep_2122110538.ViewModels;
 
 namespace TranTranHiep_2122110538.Controllers;
@@ -18,11 +19,19 @@ public class AccountController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly IUserCartService _userCart;
+    private readonly IConfiguration _config;
 
-    public AccountController(AppDbContext db, IPasswordHasher<User> passwordHasher)
+    public AccountController(
+        AppDbContext db,
+        IPasswordHasher<User> passwordHasher,
+        IUserCartService userCart,
+        IConfiguration config)
     {
         _db = db;
         _passwordHasher = passwordHasher;
+        _userCart = userCart;
+        _config = config;
     }
 
     [AllowAnonymous]
@@ -130,6 +139,8 @@ public class AccountController : Controller
         var principal = new ClaimsPrincipal(identity);
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
+        await _userCart.MergeSessionIntoDatabaseAsync(HttpContext, user.Id);
+
         int? restaurantId = user.Role == Roles.Seller
             ? await _db.Restaurants.AsNoTracking().Where(r => r.OwnerId == user.Id).Select(r => (int?)r.Id).FirstOrDefaultAsync()
             : null;
@@ -168,6 +179,123 @@ public class AccountController : Controller
         var role = User.FindFirstValue(ClaimTypes.Role);
         var restaurantId = User.FindFirstValue(AuthClaims.RestaurantId);
         return Ok(new { id, name, role, restaurantId });
+    }
+
+    /// <summary>Thông tin hồ sơ đầy đủ (không có mật khẩu).</summary>
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> Profile()
+    {
+        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null)
+            return NotFound(new { message = "Không tìm thấy tài khoản." });
+
+        return Ok(new
+        {
+            u.Id,
+            u.Username,
+            u.FullName,
+            u.Email,
+            u.Phone,
+            u.Address,
+            u.Role,
+            u.CreatedAt
+        });
+    }
+
+    [Authorize]
+    [HttpPut]
+    public async Task<IActionResult> Profile([FromBody] UpdateProfileRequest model)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null)
+            return NotFound(new { message = "Không tìm thấy tài khoản." });
+
+        if (!string.IsNullOrWhiteSpace(model.FullName))
+            u.FullName = model.FullName.Trim();
+        u.Email = string.IsNullOrWhiteSpace(model.Email) ? u.Email : model.Email.Trim();
+        u.Phone = model.Phone?.Trim();
+        u.Address = model.Address?.Trim();
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Đã cập nhật hồ sơ.", u.Id, u.FullName, u.Email, u.Phone, u.Address });
+    }
+
+    /// <summary>Public key VAPID cho trình duyệt đăng ký Web Push (để nhận thông báo nền).</summary>
+    [Authorize]
+    [HttpGet]
+    public IActionResult WebPushPublicKey() =>
+        Ok(new { publicKey = _config["WebPush:PublicKey"] ?? "" });
+
+    /// <summary>Lưu subscription Web Push (một user có nhiều thiết bị).</summary>
+    [Authorize]
+    [HttpPost]
+    public async Task<IActionResult> RegisterPush([FromBody] PushSubscriptionRequest body)
+    {
+        if (string.IsNullOrWhiteSpace(body.Endpoint) || string.IsNullOrWhiteSpace(body.P256dh) ||
+            string.IsNullOrWhiteSpace(body.Auth))
+            return BadRequest(new { message = "Thiếu endpoint / keys." });
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var ep = body.Endpoint.Trim();
+        var existing = await _db.PushSubscriptions.FirstOrDefaultAsync(s => s.UserId == userId && s.Endpoint == ep);
+        if (existing != null)
+        {
+            existing.P256dh = body.P256dh.Trim();
+            existing.Auth = body.Auth.Trim();
+        }
+        else
+        {
+            _db.PushSubscriptions.Add(new PushSubscription
+            {
+                UserId = userId,
+                Endpoint = ep.Length > 2048 ? ep[..2048] : ep,
+                P256dh = body.P256dh.Trim(),
+                Auth = body.Auth.Trim(),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Đã đăng ký push." });
+    }
+
+    [Authorize]
+    [HttpPost]
+    public async Task<IActionResult> UnregisterPush([FromBody] PushSubscriptionRequest body)
+    {
+        if (string.IsNullOrWhiteSpace(body.Endpoint))
+            return BadRequest(new { message = "Cần endpoint." });
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var ep = body.Endpoint.Trim();
+        await _db.PushSubscriptions.Where(s => s.UserId == userId && s.Endpoint == ep).ExecuteDeleteAsync();
+        return Ok(new { message = "Đã gỡ đăng ký push." });
+    }
+
+    [Authorize]
+    [HttpPost]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest model)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null)
+            return NotFound(new { message = "Không tìm thấy tài khoản." });
+
+        if (_passwordHasher.VerifyHashedPassword(u, u.Password, model.CurrentPassword) == PasswordVerificationResult.Failed)
+            return BadRequest(new { message = "Mật khẩu hiện tại không đúng." });
+
+        u.Password = _passwordHasher.HashPassword(u, model.NewPassword);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Đã đổi mật khẩu." });
     }
 
     [AllowAnonymous]

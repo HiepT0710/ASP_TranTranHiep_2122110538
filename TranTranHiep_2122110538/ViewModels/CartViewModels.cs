@@ -22,4 +22,7 @@ public class CheckoutRequest
 {
     public string? Address { get; set; }
     public string? Phone { get; set; }
+
+    /// <summary>COD | VNPay | MoMo (mặc định COD).</summary>
+    public string? PaymentMethod { get; set; }
 }

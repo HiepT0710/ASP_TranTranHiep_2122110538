@@ -36,4 +36,9 @@ public class User
 
     /// <summary>1 Seller — 1 quán (nếu Role = Seller).</summary>
     public Restaurant? OwnedRestaurant { get; set; }
+
+    public ICollection<OrderStatusHistory> OrderStatusHistoriesAsActor { get; set; } = new List<OrderStatusHistory>();
+    public ICollection<FoodReview> FoodReviews { get; set; } = new List<FoodReview>();
+    public ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
+    public ICollection<PushSubscription> PushSubscriptions { get; set; } = new List<PushSubscription>();
 }

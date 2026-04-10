@@ -64,6 +64,7 @@ public static class DbInitializer
         await db.SaveChangesAsync();
 
         await AddRestaurantMenuForSellerAsync(db, seller.Id);
+        await SeedDemoOrdersAndReviewsAsync(db, customer.Id, seller.Id);
     }
 
     private static async Task EnsureDemoSellerAndRestaurantAsync(AppDbContext db, IPasswordHasher<User> passwordHasher)
@@ -119,7 +120,8 @@ public static class DbInitializer
                 Description = "Trà đào mát lạnh",
                 RestaurantId = restaurant.Id,
                 CategoryId = catDrink.Id,
-                IsAvailable = true
+                IsAvailable = true,
+                StockQuantity = 100
             },
             new Food
             {
@@ -129,7 +131,8 @@ public static class DbInitializer
                 Description = "Cà phê phin truyền thống",
                 RestaurantId = restaurant.Id,
                 CategoryId = catDrink.Id,
-                IsAvailable = true
+                IsAvailable = true,
+                StockQuantity = 100
             },
             new Food
             {
@@ -139,7 +142,8 @@ public static class DbInitializer
                 Description = "Sườn nướng, bì, chả",
                 RestaurantId = restaurant.Id,
                 CategoryId = catMain.Id,
-                IsAvailable = true
+                IsAvailable = true,
+                StockQuantity = 100
             },
             new Food
             {
@@ -149,7 +153,8 @@ public static class DbInitializer
                 Description = "Nước dùng đậm đà",
                 RestaurantId = restaurant.Id,
                 CategoryId = catMain.Id,
-                IsAvailable = true
+                IsAvailable = true,
+                StockQuantity = 100
             },
             new Food
             {
@@ -159,8 +164,160 @@ public static class DbInitializer
                 Description = "6 cuốn / phần",
                 RestaurantId = restaurant.Id,
                 CategoryId = catSnack.Id,
-                IsAvailable = true
+                IsAvailable = true,
+                StockQuantity = 100
             });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Đơn hàng và đánh giá mẫu để demo và báo cáo (chỉ khi chưa có đơn).</summary>
+    private static async Task SeedDemoOrdersAndReviewsAsync(AppDbContext db, int customerId, int sellerUserId)
+    {
+        if (await db.Orders.AnyAsync())
+            return;
+
+        var restaurant = await db.Restaurants.FirstOrDefaultAsync(r => r.OwnerId == sellerUserId);
+        if (restaurant == null)
+            return;
+
+        var foods = await db.Foods.Where(f => f.RestaurantId == restaurant.Id).OrderBy(f => f.Id).Take(3).ToListAsync();
+        if (foods.Count == 0)
+            return;
+
+        var t = DateTime.UtcNow;
+        var f0 = foods[0];
+        var f1 = foods[1];
+        var f2 = foods.Count > 2 ? foods[2] : foods[0];
+
+        var completed = new Order
+        {
+            UserId = customerId,
+            RestaurantId = restaurant.Id,
+            OrderDate = t.AddDays(-3),
+            TotalAmount = f0.Price * 2 + f1.Price,
+            Status = OrderStatuses.Completed,
+            Address = "TP.HCM",
+            Phone = "0911111111",
+            PaymentMethod = PaymentMethods.COD,
+            PaymentStatus = PaymentStatuses.Paid,
+            PaidAt = t.AddDays(-3).AddHours(2)
+        };
+        db.Orders.Add(completed);
+        await db.SaveChangesAsync();
+
+        db.OrderDetails.AddRange(
+            new OrderDetail { OrderId = completed.Id, FoodId = f0.Id, Quantity = 2, Price = f0.Price },
+            new OrderDetail { OrderId = completed.Id, FoodId = f1.Id, Quantity = 1, Price = f1.Price });
+
+        var food0 = await db.Foods.FindAsync(f0.Id);
+        var food1 = await db.Foods.FindAsync(f1.Id);
+        if (food0 != null)
+            food0.StockQuantity = Math.Max(0, food0.StockQuantity - 2);
+        if (food1 != null)
+            food1.StockQuantity = Math.Max(0, food1.StockQuantity - 1);
+
+        db.OrderStatusHistories.AddRange(
+            new OrderStatusHistory
+            {
+                OrderId = completed.Id,
+                FromStatus = null,
+                ToStatus = OrderStatuses.Pending,
+                ActorUserId = customerId,
+                ActorRole = Roles.User,
+                Note = "Tạo đơn (dữ liệu mẫu)",
+                CreatedAt = t.AddDays(-3)
+            },
+            new OrderStatusHistory
+            {
+                OrderId = completed.Id,
+                FromStatus = OrderStatuses.Pending,
+                ToStatus = OrderStatuses.Preparing,
+                ActorUserId = sellerUserId,
+                ActorRole = Roles.Seller,
+                CreatedAt = t.AddDays(-3).AddMinutes(15)
+            },
+            new OrderStatusHistory
+            {
+                OrderId = completed.Id,
+                FromStatus = OrderStatuses.Preparing,
+                ToStatus = OrderStatuses.Delivering,
+                ActorUserId = sellerUserId,
+                ActorRole = Roles.Seller,
+                Note = "Mã vận đơn DEMO-001",
+                CreatedAt = t.AddDays(-3).AddHours(1)
+            },
+            new OrderStatusHistory
+            {
+                OrderId = completed.Id,
+                FromStatus = OrderStatuses.Delivering,
+                ToStatus = OrderStatuses.Completed,
+                ActorUserId = sellerUserId,
+                ActorRole = Roles.Seller,
+                CreatedAt = t.AddDays(-3).AddHours(2)
+            });
+
+        db.OrderPayments.Add(new OrderPayment
+        {
+            OrderId = completed.Id,
+            Amount = completed.TotalAmount,
+            Kind = PaymentKinds.CodCapture,
+            Method = PaymentMethods.COD,
+            Status = PaymentStatuses.Paid,
+            Note = "Thu COD khi hoàn thành (dữ liệu mẫu)",
+            CreatedAt = t.AddDays(-3).AddHours(2)
+        });
+
+        db.FoodReviews.AddRange(
+            new FoodReview
+            {
+                OrderId = completed.Id,
+                FoodId = f0.Id,
+                UserId = customerId,
+                Rating = 5,
+                Comment = "Rất ngon, đóng gói cẩn thận.",
+                CreatedAt = t.AddDays(-2)
+            },
+            new FoodReview
+            {
+                OrderId = completed.Id,
+                FoodId = f1.Id,
+                UserId = customerId,
+                Rating = 4,
+                Comment = "Khá ổn.",
+                CreatedAt = t.AddDays(-2)
+            });
+
+        var pending = new Order
+        {
+            UserId = customerId,
+            RestaurantId = restaurant.Id,
+            OrderDate = t,
+            TotalAmount = f2.Price,
+            Status = OrderStatuses.Pending,
+            Address = "TP.HCM",
+            Phone = "0911111111",
+            PaymentMethod = PaymentMethods.VNPay,
+            PaymentStatus = PaymentStatuses.Pending
+        };
+        db.Orders.Add(pending);
+        await db.SaveChangesAsync();
+
+        db.OrderDetails.Add(new OrderDetail { OrderId = pending.Id, FoodId = f2.Id, Quantity = 1, Price = f2.Price });
+        var food2 = await db.Foods.FindAsync(f2.Id);
+        if (food2 != null)
+            food2.StockQuantity = Math.Max(0, food2.StockQuantity - 1);
+
+        db.OrderStatusHistories.Add(new OrderStatusHistory
+        {
+            OrderId = pending.Id,
+            FromStatus = null,
+            ToStatus = OrderStatuses.Pending,
+            ActorUserId = customerId,
+            ActorRole = Roles.User,
+            Note = "Tạo đơn (dữ liệu mẫu — chờ thanh toán VNPay)",
+            CreatedAt = t
+        });
 
         await db.SaveChangesAsync();
     }

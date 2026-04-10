@@ -56,3 +56,35 @@ public class RegisterSellerRequest
     [EmailAddress, MaxLength(200)]
     public string? Email { get; set; }
 }
+
+public class UpdateProfileRequest
+{
+    [MaxLength(200)]
+    public string? FullName { get; set; }
+
+    [EmailAddress, MaxLength(200)]
+    public string? Email { get; set; }
+
+    [MaxLength(50)]
+    public string? Phone { get; set; }
+
+    [MaxLength(500)]
+    public string? Address { get; set; }
+}
+
+public class ChangePasswordRequest
+{
+    [Required]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    [Required, MinLength(6)]
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+/// <summary>Đăng ký Web Push (trình duyệt).</summary>
+public class PushSubscriptionRequest
+{
+    public string Endpoint { get; set; } = string.Empty;
+    public string P256dh { get; set; } = string.Empty;
+    public string Auth { get; set; } = string.Empty;
+}

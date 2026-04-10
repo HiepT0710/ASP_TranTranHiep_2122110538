@@ -27,5 +27,9 @@ public class Food
 
     public bool IsAvailable { get; set; } = true;
 
+    /// <summary>Số lượng tồn kho (món còn bán được).</summary>
+    public int StockQuantity { get; set; }
+
     public ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+    public ICollection<FoodReview> Reviews { get; set; } = new List<FoodReview>();
 }

@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using TranTranHiep_2122110538.Data;
 using TranTranHiep_2122110538.Hubs;
+using TranTranHiep_2122110538.Infrastructure;
 using TranTranHiep_2122110538.Models;
+using TranTranHiep_2122110538.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +25,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllersWithViews();
 
 builder.Services.AddSession(options =>
@@ -33,6 +36,12 @@ builder.Services.AddSession(options =>
 });
 
 builder.Services.AddSignalR();
+builder.Services.AddScoped<IOrderAuditService, OrderAuditService>();
+builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
+builder.Services.AddScoped<IUserCartService, UserCartService>();
+builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -40,7 +49,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Food Order API",
         Version = "v1",
-        Description = "3 role: User (khách), Seller (quán — Area Seller), Admin (Area Admin). Bảng Restaurants, Foods/Orders có RestaurantId."
+        Description = "Tồn kho món; giỏ DB khi đăng nhập (đồng bộ thiết bị); chat SignalR /hubs/orderchat; Web Push VAPID (cấu hình WebPush); đơn hàng, thanh toán giả lập, thống kê, CSV, health."
     });
 
     // Tránh lỗi 500 "Conflicting schemaIds" khi hai nested class trùng tên (vd: UpdateStatusRequest ở Admin/Seller).
@@ -48,6 +57,8 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -77,5 +88,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 app.MapHub<OrderHub>("/hubs/order");
+app.MapHub<OrderChatHub>("/hubs/orderchat");
+app.MapHealthChecks("/health");
 
 app.Run();

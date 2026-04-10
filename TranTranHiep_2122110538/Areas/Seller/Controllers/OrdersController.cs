@@ -1,11 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using TranTranHiep_2122110538.Data;
-using TranTranHiep_2122110538.Hubs;
 using TranTranHiep_2122110538.Models;
+using TranTranHiep_2122110538.Services;
 
 namespace TranTranHiep_2122110538.Areas.Seller.Controllers;
 
@@ -16,12 +15,20 @@ namespace TranTranHiep_2122110538.Areas.Seller.Controllers;
 public class OrdersController : Controller
 {
     private readonly AppDbContext _db;
-    private readonly IHubContext<OrderHub> _hub;
+    private readonly IOrderAuditService _audit;
+    private readonly IOrderNotificationService _notify;
+    private readonly IInventoryService _inventory;
 
-    public OrdersController(AppDbContext db, IHubContext<OrderHub> hub)
+    public OrdersController(
+        AppDbContext db,
+        IOrderAuditService audit,
+        IOrderNotificationService notify,
+        IInventoryService inventory)
     {
         _db = db;
-        _hub = hub;
+        _audit = audit;
+        _notify = notify;
+        _inventory = inventory;
     }
 
     private async Task<Restaurant?> GetMyRestaurantAsync()
@@ -30,7 +37,6 @@ public class OrdersController : Controller
         return await _db.Restaurants.FirstOrDefaultAsync(r => r.OwnerId == userId);
     }
 
-    /// <summary>Chỉ đơn của quán mình.</summary>
     [HttpGet]
     public async Task<IActionResult> Index(int page = 1, int pageSize = 15, string? status = null)
     {
@@ -60,7 +66,11 @@ public class OrdersController : Controller
                 o.TotalAmount,
                 o.Status,
                 o.Address,
-                o.Phone
+                o.Phone,
+                o.PaymentMethod,
+                o.PaymentStatus,
+                o.TrackingNumber,
+                o.ShipperName
             })
             .ToListAsync();
 
@@ -70,15 +80,17 @@ public class OrdersController : Controller
     public class UpdateStatusRequest
     {
         public string Status { get; set; } = string.Empty;
+        public string? TrackingNumber { get; set; }
+        public string? ShipperName { get; set; }
     }
 
-    /// <summary>Cập nhật trạng thái: Đang chuẩn bị / Đang giao / Hoàn thành (theo OrderStatuses.SellerAssignable).</summary>
     [HttpPost]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusRequest body)
     {
         if (!OrderStatuses.SellerAssignable.Contains(body.Status))
             return BadRequest(new { message = "Seller chỉ được đặt: Preparing, Delivering, Completed." });
 
+        var sellerId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var rest = await GetMyRestaurantAsync();
         if (rest == null)
             return BadRequest(new { message = "Chưa có quán." });
@@ -87,12 +99,93 @@ public class OrdersController : Controller
         if (order == null)
             return NotFound();
 
+        var from = order.Status;
         order.Status = body.Status;
+
+        if (body.Status == OrderStatuses.Delivering || body.Status == OrderStatuses.Completed)
+        {
+            if (!string.IsNullOrWhiteSpace(body.TrackingNumber))
+            {
+                var t = body.TrackingNumber.Trim();
+                order.TrackingNumber = t.Length > 100 ? t[..100] : t;
+            }
+
+            if (!string.IsNullOrWhiteSpace(body.ShipperName))
+            {
+                var s = body.ShipperName.Trim();
+                order.ShipperName = s.Length > 200 ? s[..200] : s;
+            }
+        }
+
+        if (body.Status == OrderStatuses.Completed
+            && order.PaymentMethod == PaymentMethods.COD
+            && order.PaymentStatus == PaymentStatuses.Pending)
+        {
+            order.PaymentStatus = PaymentStatuses.Paid;
+            order.PaidAt = DateTime.UtcNow;
+            _db.OrderPayments.Add(new OrderPayment
+            {
+                OrderId = order.Id,
+                Amount = order.TotalAmount,
+                Kind = PaymentKinds.CodCapture,
+                Method = PaymentMethods.COD,
+                Status = PaymentStatuses.Paid,
+                Note = "Thu COD khi hoàn thành đơn (demo)."
+            });
+        }
+
+        _audit.AddStatusChange(order.Id, from, body.Status, sellerId, Roles.Seller, null);
+
         await _db.SaveChangesAsync();
 
-        await _hub.Clients.Group(OrderHub.UserGroupName(order.UserId.ToString()))
-            .SendAsync("OrderStatusChanged", new { order.Id, order.Status, order.TotalAmount, order.RestaurantId });
+        await _notify.BroadcastOrderAsync(order);
+        if (body.Status == OrderStatuses.Delivering && !string.IsNullOrWhiteSpace(order.Phone))
+            _notify.LogSmsStub(order.Phone!, $"Đơn #{order.Id} đang giao. Mã vận đơn: {order.TrackingNumber}");
 
-        return Ok(new { message = "Đã cập nhật trạng thái.", order.Id, order.Status });
+        return Ok(new { message = "Đã cập nhật trạng thái.", order.Id, order.Status, order.TrackingNumber });
+    }
+
+    public class RejectOrderRequest
+    {
+        public string? Reason { get; set; }
+    }
+
+    /// <summary>Từ chối đơn khi còn Pending (khác với khách tự hủy).</summary>
+    [HttpPost]
+    public async Task<IActionResult> Reject(int id, [FromBody] RejectOrderRequest? body)
+    {
+        var sellerId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var rest = await GetMyRestaurantAsync();
+        if (rest == null)
+            return BadRequest(new { message = "Chưa có quán." });
+
+        var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == id && o.RestaurantId == rest.Id);
+        if (order == null)
+            return NotFound();
+
+        if (order.Status != OrderStatuses.Pending)
+            return BadRequest(new { message = "Chỉ từ chối đơn đang chờ xác nhận." });
+
+        var from = order.Status;
+        order.Status = OrderStatuses.Cancelled;
+        order.CancelledAt = DateTime.UtcNow;
+        order.CancelledBy = OrderCancelledBy.Seller;
+        if (!string.IsNullOrWhiteSpace(body?.Reason))
+        {
+            var r = body.Reason.Trim();
+            order.CancelReason = r.Length > 500 ? r[..500] : r;
+        }
+
+        _audit.AddStatusChange(order.Id, from, OrderStatuses.Cancelled, sellerId, Roles.Seller, order.CancelReason);
+
+        await _db.SaveChangesAsync();
+
+        if (InventoryRules.ShouldRestoreStockOnCancel(from, OrderStatuses.Cancelled))
+            await _inventory.RestoreStockForOrderAsync(order.Id);
+
+        await _notify.BroadcastOrderAsync(order);
+        _notify.LogEmailStub($"Quán từ chối đơn #{order.Id}", order.CancelReason ?? "");
+
+        return Ok(new { message = "Đã từ chối đơn.", order.Id, order.Status });
     }
 }

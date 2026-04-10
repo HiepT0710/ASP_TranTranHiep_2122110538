@@ -54,7 +54,8 @@ public class FoodsController : Controller
                 f.Description,
                 f.CategoryId,
                 CategoryName = f.Category!.Name,
-                f.IsAvailable
+                f.IsAvailable,
+                f.StockQuantity
             })
             .ToListAsync();
 
@@ -81,7 +82,8 @@ public class FoodsController : Controller
             f.Description,
             f.CategoryId,
             CategoryName = f.Category?.Name,
-            f.IsAvailable
+            f.IsAvailable,
+            f.StockQuantity
         });
     }
 
@@ -122,6 +124,7 @@ public class FoodsController : Controller
             RestaurantId = rest.Id,
             CategoryId = model.CategoryId,
             IsAvailable = model.IsAvailable,
+            StockQuantity = Math.Max(0, model.StockQuantity),
             Image = imagePath
         };
         _db.Foods.Add(food);
@@ -149,6 +152,7 @@ public class FoodsController : Controller
         food.Description = model.Description;
         food.CategoryId = model.CategoryId;
         food.IsAvailable = model.IsAvailable;
+        food.StockQuantity = Math.Max(0, model.StockQuantity);
 
         if (model.ImageFile is { Length: > 0 })
         {

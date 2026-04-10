@@ -18,6 +18,24 @@ public class FoodController : Controller
         _db = db;
     }
 
+    /// <summary>Danh mục của một quán (để lọc món trên UI).</summary>
+    [HttpGet]
+    public async Task<IActionResult> Categories(int restaurantId)
+    {
+        var ok = await _db.Restaurants.AsNoTracking()
+            .AnyAsync(r => r.Id == restaurantId && r.Status == RestaurantStatuses.Approved);
+        if (!ok)
+            return NotFound(new { message = "Không tìm thấy quán." });
+
+        var items = await _db.Categories.AsNoTracking()
+            .Where(c => c.RestaurantId == restaurantId)
+            .OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name, c.Description })
+            .ToListAsync();
+
+        return Ok(new { restaurantId, items });
+    }
+
     /// <summary>Danh sách món từ quán đã duyệt — phân trang, lọc danh mục, tìm theo tên.</summary>
     [HttpGet]
     public async Task<IActionResult> Index(int page = 1, int pageSize = 8, int? categoryId = null, int? restaurantId = null, string? q = null)
@@ -58,7 +76,8 @@ public class FoodController : Controller
                 CategoryName = f.Category!.Name,
                 f.RestaurantId,
                 RestaurantName = f.Restaurant!.Name,
-                f.IsAvailable
+                f.IsAvailable,
+                f.StockQuantity
             })
             .ToListAsync();
 
@@ -90,13 +109,66 @@ public class FoodController : Controller
                 CategoryName = f.Category!.Name,
                 f.RestaurantId,
                 RestaurantName = f.Restaurant!.Name,
-                f.IsAvailable
+                f.IsAvailable,
+                f.StockQuantity
             })
             .FirstOrDefaultAsync();
 
         if (food == null)
             return NotFound(new { message = "Không tìm thấy món." });
 
-        return Ok(food);
+        var reviewCount = await _db.FoodReviews.AsNoTracking().CountAsync(r => r.FoodId == id);
+        double? avgRating = reviewCount == 0
+            ? null
+            : await _db.FoodReviews.AsNoTracking().Where(r => r.FoodId == id).AverageAsync(r => (double)r.Rating);
+
+        return Ok(new
+        {
+            food.Id,
+            food.Name,
+            food.Price,
+            food.Image,
+            food.Description,
+            food.CategoryId,
+            food.CategoryName,
+            food.RestaurantId,
+            food.RestaurantName,
+            food.IsAvailable,
+            food.StockQuantity,
+            reviewCount,
+            avgRating
+        });
+    }
+
+    /// <summary>Đánh giá công khai theo món (phân trang).</summary>
+    [HttpGet]
+    public async Task<IActionResult> Reviews(int foodId, int page = 1, int pageSize = 10)
+    {
+        var exists = await _db.Foods.AsNoTracking()
+            .AnyAsync(f => f.Id == foodId && f.IsAvailable && f.Restaurant!.Status == RestaurantStatuses.Approved);
+        if (!exists)
+            return NotFound(new { message = "Không tìm thấy món." });
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 5, 50);
+
+        var query = _db.FoodReviews.AsNoTracking()
+            .Where(r => r.FoodId == foodId)
+            .OrderByDescending(r => r.CreatedAt);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(r => new
+            {
+                r.Rating,
+                r.Comment,
+                r.CreatedAt,
+                Username = r.User!.Username
+            })
+            .ToListAsync();
+
+        return Ok(new { foodId, page, pageSize, total, items });
     }
 }

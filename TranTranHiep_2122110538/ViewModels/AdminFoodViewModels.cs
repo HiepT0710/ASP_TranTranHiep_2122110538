@@ -13,5 +13,9 @@ public class FoodCreateEditRequest
 
     public int CategoryId { get; set; }
     public bool IsAvailable { get; set; } = true;
+
+    /// <summary>Tồn kho bán được.</summary>
+    public int StockQuantity { get; set; } = 100;
+
     public IFormFile? ImageFile { get; set; }
 }
