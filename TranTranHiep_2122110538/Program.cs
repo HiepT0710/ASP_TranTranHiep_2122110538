@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using TranTranHiep_2122110538.Data;
@@ -8,14 +9,16 @@ using TranTranHiep_2122110538.Infrastructure;
 using TranTranHiep_2122110538.Models;
 using TranTranHiep_2122110538.Services;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
+// Database PostgreSQL
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Password Hasher
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 
+// Authentication Cookie
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -29,6 +32,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllersWithViews();
 
+// Session
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(60);
@@ -36,13 +40,19 @@ builder.Services.AddSession(options =>
     options.Cookie.IsEssential = true;
 });
 
+// SignalR
 builder.Services.AddSignalR();
+
+// Services
 builder.Services.AddScoped<IOrderAuditService, OrderAuditService>();
 builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
 builder.Services.AddScoped<IUserCartService, UserCartService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+
 builder.Services.AddHealthChecks();
+
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -50,47 +60,73 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Food Order API",
         Version = "v1",
-        Description = "Tồn kho món; giỏ DB khi đăng nhập (đồng bộ thiết bị); chat SignalR /hubs/orderchat; Web Push VAPID (cấu hình WebPush); đơn hàng, thanh toán giả lập, thống kê, CSV, health."
+        Description = "Food Order System API - Inventory, Cart, Orders, Payment Simulation, Chat SignalR, Push Notification, Health Check"
     });
 
-    // Tránh lỗi 500 "Conflicting schemaIds" khi hai nested class trùng tên (vd: UpdateStatusRequest ở Admin/Seller).
+    // Tránh lỗi trùng schema
     c.CustomSchemaIds(type => type.FullName!.Replace("+", "."));
 });
 
 var app = builder.Build();
 
+// Middleware xử lý lỗi
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-if (app.Environment.IsDevelopment())
+// Fix proxy khi deploy Render
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.All
+});
+
+// Swagger cho cả Production
+if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Food Order API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
+
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Auto migrate database
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
+
+    db.Database.Migrate();
+
     // await DbInitializer.SeedAsync(db, hasher);
 }
 
+// Routes
 app.MapControllerRoute(
     name: "areas",
     pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
+
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// SignalR hubs
 app.MapHub<OrderHub>("/hubs/order");
 app.MapHub<OrderChatHub>("/hubs/orderchat");
+
+// Health check
 app.MapHealthChecks("/health");
+
+// Port cho Render
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
 app.Urls.Add($"http://0.0.0.0:{port}");
+
 app.Run();
