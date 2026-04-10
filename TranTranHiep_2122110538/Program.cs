@@ -90,5 +90,6 @@ app.MapControllerRoute(
 app.MapHub<OrderHub>("/hubs/order");
 app.MapHub<OrderChatHub>("/hubs/orderchat");
 app.MapHealthChecks("/health");
-
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+app.Urls.Add($"http://0.0.0.0:{port}");
 app.Run();
