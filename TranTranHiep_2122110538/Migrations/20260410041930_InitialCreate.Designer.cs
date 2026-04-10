@@ -12,7 +12,7 @@ using TranTranHiep_2122110538.Data;
 namespace TranTranHiep_2122110538.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260410041431_InitialCreate")]
+    [Migration("20260410041930_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />

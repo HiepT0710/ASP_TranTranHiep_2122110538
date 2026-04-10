@@ -117,10 +117,10 @@ namespace TranTranHiep_2122110538.Migrations
                     CancelReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     PaymentMethod = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     PaymentStatus = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    PaidAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PaidAt = table.Column<DateTime>(type: "timestamp", nullable: true),
                     TrackingNumber = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     ShipperName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    RefundedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RefundedAt = table.Column<DateTime>(type: "timestamp", nullable: true),
                     RefundReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
                 },
                 constraints: table =>
