@@ -39,7 +39,7 @@ public class RestaurantController : Controller
             .OrderBy(r => r.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(r => new { r.Id, r.Name, r.Address, r.Phone })
+            .Select(r => new { r.Id, r.Name, r.Address, r.Phone, r.CoverImage, r.GalleryImage1, r.GalleryImage2, r.GalleryImage3, r.IsOnSale, r.SalePercent })
             .ToListAsync();
 
         var rids = pageList.Select(r => r.Id).ToList();
@@ -56,10 +56,71 @@ public class RestaurantController : Controller
             r.Name,
             r.Address,
             r.Phone,
+            r.CoverImage,
+            r.GalleryImage1,
+            r.GalleryImage2,
+            r.GalleryImage3,
+            r.IsOnSale,
+            r.SalePercent,
             foodCount = countMap.GetValueOrDefault(r.Id)
         }).ToList();
 
         return Ok(new { page, pageSize, total, items });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Sale()
+    {
+        var items = await _db.Restaurants.AsNoTracking()
+            .Where(r => r.Status == RestaurantStatuses.Approved && r.IsOnSale)
+            .OrderByDescending(r => r.SalePercent)
+            .Select(r => new
+            {
+                r.Id,
+                r.Name,
+                r.Address,
+                r.Phone,
+                r.CoverImage,
+                r.GalleryImage1,
+                r.GalleryImage2,
+                r.GalleryImage3,
+                r.IsOnSale,
+                r.SalePercent,
+                foodCount = r.Foods.Count(f => f.IsAvailable)
+            })
+            .Take(12)
+            .ToListAsync();
+
+        return Ok(new { items });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> BestSellers(int take = 8)
+    {
+        take = Math.Clamp(take, 1, 20);
+        var items = await _db.Foods.AsNoTracking()
+            .Where(f => f.IsAvailable && f.Restaurant!.Status == RestaurantStatuses.Approved)
+            .Select(f => new
+            {
+                f.Id,
+                f.Name,
+                f.Price,
+                f.Image,
+                f.Description,
+                f.CategoryId,
+                CategoryName = f.Category!.Name,
+                f.RestaurantId,
+                RestaurantName = f.Restaurant!.Name,
+                f.IsOnSale,
+                f.SalePercent,
+                OrdersCount = _db.OrderDetails.Count(od => od.FoodId == f.Id)
+            })
+            .OrderByDescending(x => x.OrdersCount)
+            .ThenByDescending(x => x.IsOnSale)
+            .Take(take)
+            .ToListAsync();
+
+        return Ok(new { items });
     }
 
     [HttpGet]
@@ -79,6 +140,12 @@ public class RestaurantController : Controller
             r.Name,
             r.Address,
             r.Phone,
+            r.CoverImage,
+            r.GalleryImage1,
+            r.GalleryImage2,
+            r.GalleryImage3,
+            r.IsOnSale,
+            r.SalePercent,
             foodCount,
             categoryCount
         });

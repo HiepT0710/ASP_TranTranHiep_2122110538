@@ -19,6 +19,22 @@ public class Restaurant
     [MaxLength(50)]
     public string? Phone { get; set; }
 
+    [MaxLength(500)]
+    public string? CoverImage { get; set; }
+
+    [MaxLength(500)]
+    public string? GalleryImage1 { get; set; }
+
+    [MaxLength(500)]
+    public string? GalleryImage2 { get; set; }
+
+    [MaxLength(500)]
+    public string? GalleryImage3 { get; set; }
+
+    public bool IsOnSale { get; set; }
+
+    public int SalePercent { get; set; }
+
     [Required, MaxLength(50)]
     public string Status { get; set; } = RestaurantStatuses.Pending;
 

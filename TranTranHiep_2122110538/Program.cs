@@ -11,9 +11,12 @@ using TranTranHiep_2122110538.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database PostgreSQL
+// Database SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    var conn = builder.Configuration.GetConnectionString("DefaultConnection");
+    options.UseSqlServer(conn);
+});
 
 // Password Hasher
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -26,11 +29,36 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.AccessDeniedPath = "/Account/AccessDenied";
         options.Cookie.Name = "FoodOrderAuth";
         options.SlidingExpiration = true;
+        options.Events = new CookieAuthenticationEvents
+        {
+            OnRedirectToLogin = context =>
+            {
+                // SPA/API: return 401 instead of redirecting to GET /Account/Login
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            },
+            OnRedirectToAccessDenied = context =>
+            {
+                // SPA/API: return 403 instead of HTML redirect
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllersWithViews();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendPolicy", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
 
 // Session
 builder.Services.AddSession(options =>
@@ -93,20 +121,28 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
+app.UseCors("FrontendPolicy");
 
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Auto migrate database
+// Auto create/migrate database
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
 
-    db.Database.Migrate();
+    try
+    {
+        db.Database.Migrate();
+    }
+    catch
+    {
+        db.Database.EnsureCreated();
+    }
 
-    // await DbInitializer.SeedAsync(db, hasher);
+    await DbInitializer.SeedAsync(db, hasher);
 }
 
 // Routes
@@ -125,8 +161,11 @@ app.MapHub<OrderChatHub>("/hubs/orderchat");
 // Health check
 app.MapHealthChecks("/health");
 
-// Port cho Render
-var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
-app.Urls.Add($"http://0.0.0.0:{port}");
+// Port cho Render (chỉ áp dụng khi có biến môi trường PORT)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    app.Urls.Add($"http://0.0.0.0:{port}");
+}
 
 app.Run();

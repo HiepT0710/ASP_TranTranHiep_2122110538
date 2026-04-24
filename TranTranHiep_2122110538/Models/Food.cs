@@ -16,6 +16,10 @@ public class Food
     [MaxLength(500)]
     public string? Image { get; set; }
 
+    public bool IsOnSale { get; set; }
+
+    public int SalePercent { get; set; }
+
     [MaxLength(2000)]
     public string? Description { get; set; }
 

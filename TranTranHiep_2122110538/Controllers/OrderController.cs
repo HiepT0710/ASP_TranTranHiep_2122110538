@@ -37,18 +37,12 @@ public class OrderController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> Checkout([FromBody] CheckoutRequest? body)
+    public async Task<IActionResult> Checkout([FromBody] CheckoutPayload? body)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var cart = await _userCart.GetCartLinesAsync(HttpContext);
         if (cart.Count == 0)
             return BadRequest(new { message = "Giỏ hàng trống." });
-
-        var paymentMethod = string.IsNullOrWhiteSpace(body?.PaymentMethod)
-            ? PaymentMethods.COD
-            : body!.PaymentMethod!.Trim();
-        if (!PaymentMethods.All.Contains(paymentMethod))
-            return BadRequest(new { message = "Phương thức thanh toán phải là COD, VNPay hoặc MoMo." });
 
         var ids = cart.Select(c => c.FoodId).ToList();
         var foods = await _db.Foods
@@ -89,6 +83,33 @@ public class OrderController : Controller
         if (restaurantId == null)
             return BadRequest(new { message = "Không xác định được quán." });
 
+        decimal discountAmount = 0;
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(body?.VoucherCode))
+        {
+            var voucherCode = body.VoucherCode.Trim().ToUpperInvariant();
+            appliedVoucher = await _db.Vouchers.Include(v => v.Promotion).FirstOrDefaultAsync(v => v.Code == voucherCode && v.IsActive);
+            if (appliedVoucher == null)
+                return BadRequest(new { message = "Voucher không hợp lệ." });
+            if (appliedVoucher.UsedCount >= appliedVoucher.UsageLimit)
+                return BadRequest(new { message = "Voucher đã hết lượt dùng." });
+            var now = DateTime.Now;
+            if (appliedVoucher.StartAt > now || appliedVoucher.EndAt < now)
+                return BadRequest(new { message = "Voucher đã hết hạn hoặc chưa tới thời gian sử dụng." });
+            if (appliedVoucher.MinOrderAmount.HasValue && total < appliedVoucher.MinOrderAmount.Value)
+                return BadRequest(new { message = "Đơn hàng chưa đạt mức tối thiểu để dùng voucher." });
+        }
+
+        if (appliedVoucher?.Promotion != null)
+        {
+            discountAmount = total * appliedVoucher.Promotion.DiscountPercent / 100m;
+            if (appliedVoucher.MaxDiscountAmount.HasValue)
+                discountAmount = Math.Min(discountAmount, appliedVoucher.MaxDiscountAmount.Value);
+            discountAmount = Math.Max(0, discountAmount);
+        }
+
+        var finalTotal = Math.Max(0, total - discountAmount);
+
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
 
         await using var tx = await _db.Database.BeginTransactionAsync();
@@ -99,12 +120,18 @@ public class OrderController : Controller
             return BadRequest(new { message = deduct.ErrorMessage });
         }
 
+        var paymentMethod = string.IsNullOrWhiteSpace(body?.PaymentMethod)
+            ? PaymentMethods.COD
+            : body!.PaymentMethod!.Trim();
+        if (!PaymentMethods.All.Contains(paymentMethod))
+            return BadRequest(new { message = "Phương thức thanh toán phải là COD, VNPay hoặc MoMo." });
+
         var order = new Order
         {
             UserId = userId,
             RestaurantId = restaurantId.Value,
             OrderDate = DateTime.UtcNow,
-            TotalAmount = total,
+            TotalAmount = finalTotal,
             Status = OrderStatuses.Pending,
             Address = body?.Address ?? user?.Address,
             Phone = body?.Phone ?? user?.Phone,
@@ -122,6 +149,17 @@ public class OrderController : Controller
 
         _db.OrderDetails.AddRange(lines);
         await _db.SaveChangesAsync();
+
+        if (appliedVoucher != null)
+        {
+            appliedVoucher.UsedCount += 1;
+            _db.Vouchers.Update(appliedVoucher);
+            await _db.SaveChangesAsync();
+        }
+
+        order.TotalAmount = finalTotal;
+        await _db.SaveChangesAsync();
+
         await tx.CommitAsync();
 
         await _userCart.ClearDatabaseCartAsync(userId);

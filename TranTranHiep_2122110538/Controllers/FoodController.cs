@@ -77,6 +77,8 @@ public class FoodController : Controller
                 f.RestaurantId,
                 RestaurantName = f.Restaurant!.Name,
                 f.IsAvailable,
+                f.IsOnSale,
+                f.SalePercent,
                 f.StockQuantity
             })
             .ToListAsync();
@@ -110,6 +112,8 @@ public class FoodController : Controller
                 f.RestaurantId,
                 RestaurantName = f.Restaurant!.Name,
                 f.IsAvailable,
+                f.IsOnSale,
+                f.SalePercent,
                 f.StockQuantity
             })
             .FirstOrDefaultAsync();
@@ -134,6 +138,8 @@ public class FoodController : Controller
             food.RestaurantId,
             food.RestaurantName,
             food.IsAvailable,
+            food.IsOnSale,
+            food.SalePercent,
             food.StockQuantity,
             reviewCount,
             avgRating
