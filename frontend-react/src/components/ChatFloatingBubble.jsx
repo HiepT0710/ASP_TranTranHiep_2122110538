@@ -3,7 +3,7 @@ import { useChat } from "../context/ChatContext";
 
 export default function ChatFloatingBubble() {
   const { threads, minimized, reopenBubble, closeBubble, endConversation, clearUnread } = useChat();
-  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [expandedThreadKey, setExpandedThreadKey] = useState(null);
 
   const activeThreads = useMemo(
     () => Object.entries(threads)
@@ -17,7 +17,7 @@ export default function ChatFloatingBubble() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed?.expandedOrderId != null) setExpandedOrderId(String(parsed.expandedOrderId));
+        if (parsed?.expandedThreadKey != null) setExpandedThreadKey(String(parsed.expandedThreadKey));
       } catch {
         localStorage.removeItem("chat-bubbles-state");
       }
@@ -25,16 +25,18 @@ export default function ChatFloatingBubble() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("chat-bubbles-state", JSON.stringify({ expandedOrderId }));
-  }, [expandedOrderId]);
+    localStorage.setItem("chat-bubbles-state", JSON.stringify({ expandedThreadKey }));
+  }, [expandedThreadKey]);
 
   if (activeThreads.length === 0) return null;
 
   return (
     <div className="chat-bubbles-stack">
-      {activeThreads.map(([orderId, thread], index) => {
+      {activeThreads.map(([threadKey, thread], index) => {
+        const orderId = String(thread.orderId || threadKey.split("::")[0] || "");
+        const target = thread.target || "seller";
         const lastMessage = thread.messages[thread.messages.length - 1];
-        const isOpen = minimized[orderId] ? false : expandedOrderId === String(orderId);
+        const isOpen = minimized[threadKey] ? false : expandedThreadKey === String(threadKey);
         const offset = index * 18;
         const style = {
           bottom: `${18 + offset}px`,
@@ -46,23 +48,23 @@ export default function ChatFloatingBubble() {
         };
 
         return (
-          <div key={orderId} className={`chat-bubble-card ${isOpen ? "open" : "closed"}`} style={style}>
+          <div key={threadKey} className={`chat-bubble-card ${isOpen ? "open" : "closed"}`} style={style}>
             <button
               type="button"
               className="chat-bubble-card-head"
               onClick={() => {
                 if (isOpen) {
-                  closeBubble(orderId);
-                  setExpandedOrderId(null);
+                  closeBubble(orderId, target);
+                  setExpandedThreadKey(null);
                 } else {
-                  reopenBubble(orderId);
-                  setExpandedOrderId(String(orderId));
+                  reopenBubble(orderId, target);
+                  setExpandedThreadKey(String(threadKey));
                 }
               }}
             >
               <div>
                 <b>{thread.partnerName || lastMessage?.username || "Hỗ trợ"}</b>
-                <div className="muted chat-bubble-status">Đơn #{orderId} · {thread.agentStatus || "đang chờ hỗ trợ"}</div>
+                <div className="muted chat-bubble-status">Đơn #{orderId} · {target === "admin" ? "admin" : "seller"} · {thread.agentStatus || "đang chờ hỗ trợ"}</div>
               </div>
               <div className="chat-bubble-meta">
                 {thread.unreadCount > 0 && <span className="chat-bubble-count">{thread.unreadCount}</span>}
@@ -71,7 +73,7 @@ export default function ChatFloatingBubble() {
             </button>
 
             <div className={`chat-bubble-card-body ${isOpen ? "open" : "closed"}`}>
-              <div className="chat-bubble-preview" onClick={() => setExpandedOrderId(String(orderId))} role="button" tabIndex={0}>
+              <div className="chat-bubble-preview" onClick={() => setExpandedThreadKey(String(threadKey))} role="button" tabIndex={0}>
                 <div className="chat-bubble-preview-top">
                   <span className={`chat-role-pill ${thread.online ? "online" : thread.agentStatus === "đang trả lời" ? "replying" : "away"}`}>
                     {thread.online ? "Online" : thread.agentStatus || "Away"}
@@ -83,9 +85,9 @@ export default function ChatFloatingBubble() {
               </div>
 
               <div className="chat-bubble-actions">
-                <button type="button" className="secondary" onClick={() => clearUnread(orderId)}>Đã đọc</button>
-                <button type="button" className="secondary" onClick={() => endConversation(orderId)}>Kết thúc</button>
-                <button type="button" className="secondary" onClick={() => { closeBubble(orderId); setExpandedOrderId(null); }}>Ẩn</button>
+                <button type="button" className="secondary" onClick={() => clearUnread(orderId, target)}>Đã đọc</button>
+                <button type="button" className="secondary" onClick={() => endConversation(orderId, target)}>Kết thúc</button>
+                <button type="button" className="secondary" onClick={() => { closeBubble(orderId, target); setExpandedThreadKey(null); }}>Ẩn</button>
               </div>
             </div>
           </div>

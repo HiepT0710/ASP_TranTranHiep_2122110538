@@ -13,6 +13,7 @@ namespace TranTranHiep_2122110538.Hubs;
 public class OrderChatHub : Hub
 {
     private readonly IServiceProvider _sp;
+    private const string TargetMetaPrefix = "chat-target:";
 
     public OrderChatHub(IServiceProvider sp)
     {
@@ -23,6 +24,26 @@ public class OrderChatHub : Hub
     public static string UserInboxGroup(int userId) => $"chat_user_{userId}";
     public static string SellerInboxGroup(int userId) => $"chat_seller_{userId}";
     public static string AdminInboxGroup() => "chat_admin";
+
+    public static string NormalizeTarget(string? target)
+    {
+        var normalized = (target ?? "seller").Trim().ToLowerInvariant();
+        return normalized == "admin" ? "admin" : "seller";
+    }
+
+    public static string BuildTargetMeta(string target) => $"{TargetMetaPrefix}{NormalizeTarget(target)}";
+
+    public static string ParseTargetMeta(string? hiddenReason)
+    {
+        if (string.IsNullOrWhiteSpace(hiddenReason))
+            return "seller";
+
+        if (!hiddenReason.StartsWith(TargetMetaPrefix, StringComparison.OrdinalIgnoreCase))
+            return "seller";
+
+        var raw = hiddenReason[TargetMetaPrefix.Length..].Trim();
+        return NormalizeTarget(raw);
+    }
 
     public override async Task OnConnectedAsync()
     {
@@ -78,13 +99,13 @@ public class OrderChatHub : Hub
         if (order == null)
             return;
 
-        if (!await CanAccessAsync(db, userId, order))
+        if (!await CanAccessAsync(db, userId, order, "seller"))
             return;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, OrderGroup(orderId));
     }
 
-    public async Task SendOrderMessage(int orderId, string message)
+    public async Task SendOrderMessage(int orderId, string message, string target = "seller")
     {
         if (string.IsNullOrWhiteSpace(message))
             return;
@@ -96,7 +117,8 @@ public class OrderChatHub : Hub
         if (order == null)
             return;
 
-        if (!await CanAccessAsync(db, userId, order))
+        var normalizedTarget = NormalizeTarget(target);
+        if (!await CanAccessAsync(db, userId, order, normalizedTarget))
             return;
 
         var trimmed = message.Trim();
@@ -108,6 +130,7 @@ public class OrderChatHub : Hub
             OrderId = orderId,
             UserId = userId,
             Message = trimmed,
+            HiddenReason = BuildTargetMeta(normalizedTarget),
             CreatedAt = DateTime.UtcNow
         };
         db.OrderMessages.Add(entity);
@@ -122,35 +145,58 @@ public class OrderChatHub : Hub
             userId,
             username,
             message = entity.Message,
+            target = normalizedTarget,
             entity.CreatedAt
         };
 
-        await Clients.Group(OrderGroup(orderId)).SendAsync("OrderMessageReceived", payload);
+        var ownerId = await db.Restaurants.AsNoTracking().Where(r => r.Id == order.RestaurantId).Select(r => r.OwnerId).FirstAsync();
+        if (normalizedTarget == "admin")
+        {
+            await Clients.Groups(UserInboxGroup(order.UserId), AdminInboxGroup()).SendAsync("OrderMessageReceived", payload);
+        }
+        else
+        {
+            await Clients.Groups(UserInboxGroup(order.UserId), SellerInboxGroup(ownerId)).SendAsync("OrderMessageReceived", payload);
+        }
 
         var push = scope.ServiceProvider.GetRequiredService<IPushNotificationService>();
-        var ownerId = await db.Restaurants.AsNoTracking().Where(r => r.Id == order.RestaurantId).Select(r => r.OwnerId).FirstAsync();
         var preview = trimmed.Length <= 80 ? trimmed : trimmed[..80] + "…";
-        if (userId == order.UserId)
+        if (normalizedTarget == "admin")
+        {
+            if (userId == order.UserId)
+            {
+                var adminIds = await db.Users.AsNoTracking().Where(u => u.Role == Roles.Admin).Select(u => u.Id).ToListAsync();
+                foreach (var adminId in adminIds)
+                    await push.SendToUserAsync(adminId, $"Tin nhắn hỗ trợ admin đơn #{orderId}", preview);
+            }
+            else if (Context.User!.IsInRole(Roles.Admin))
+            {
+                await push.SendToUserAsync(order.UserId, $"Phản hồi admin đơn #{orderId}", preview);
+            }
+        }
+        else if (userId == order.UserId)
         {
             await push.SendToUserAsync(ownerId, $"Tin nhắn đơn #{orderId}", preview);
         }
-        else if (userId == ownerId || Context.User!.IsInRole(Roles.Admin))
+        else if (userId == ownerId)
         {
             await push.SendToUserAsync(order.UserId, $"Tin nhắn đơn #{orderId}", preview);
         }
     }
 
-    private static async Task<bool> CanAccessAsync(AppDbContext db, int userId, Order order)
+    private static async Task<bool> CanAccessAsync(AppDbContext db, int userId, Order order, string target)
     {
         if (order.UserId == userId)
             return true;
 
         var role = await db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.Role).FirstOrDefaultAsync();
         if (role == Roles.Admin)
-            return false;
+            return target == "admin";
 
         if (role == Roles.Seller)
         {
+            if (target != "seller")
+                return false;
             var rid = await db.Restaurants.AsNoTracking().Where(r => r.OwnerId == userId).Select(r => r.Id).FirstOrDefaultAsync();
             return rid == order.RestaurantId;
         }

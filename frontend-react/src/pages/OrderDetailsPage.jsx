@@ -5,6 +5,7 @@ import { cancelOrder, getOrderDetails, getOrderStatusHistory, submitOrderReview,
 import { SkeletonCardGrid, StateMessage } from "../components/PageStates";
 import ReportButton from "../components/ReportButton";
 import { useToast } from "../context/ToastContext";
+import { useChat } from "../context/ChatContext";
 import { formatDateTime } from "../utils/dateTime";
 
 const ORDER_STATUS_LABELS = {
@@ -39,6 +40,7 @@ function renderStars(value) {
 export default function OrderDetailsPage() {
   const { id } = useParams();
   const { pushToast } = useToast();
+  const { openSupport } = useChat();
   const [detail, setDetail] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -318,6 +320,7 @@ export default function OrderDetailsPage() {
       </div>
 
       <div className="row" style={{ marginTop: 18 }}>
+        <button type="button" className="secondary" onClick={() => openSupport(detail.id, "admin")}>Liên hệ admin</button>
         <ReportButton targetType="Order" targetId={detail.id} label="Báo cáo đơn hàng" />
         <ReportButton targetType="Restaurant" targetId={detail.restaurantId} label="Báo cáo quán" />
       </div>

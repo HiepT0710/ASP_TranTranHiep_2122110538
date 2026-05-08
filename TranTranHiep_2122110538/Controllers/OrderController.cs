@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TranTranHiep_2122110538.Data;
 using TranTranHiep_2122110538.Infrastructure;
+using TranTranHiep_2122110538.Hubs;
 using TranTranHiep_2122110538.Models;
 using InventoryRules = TranTranHiep_2122110538.Services.InventoryRules;
 using TranTranHiep_2122110538.Services;
@@ -880,7 +881,7 @@ public class OrderController : Controller
 
     /// <summary>Lịch sử chat theo đơn (khách / seller quán đó / admin).</summary>
     [HttpGet]
-    public async Task<IActionResult> ChatMessages(int id, int page = 1, int pageSize = 40)
+    public async Task<IActionResult> ChatMessages(int id, int page = 1, int pageSize = 40, string? target = null)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var isAdmin = User.IsInRole(Roles.Admin);
@@ -902,12 +903,18 @@ public class OrderController : Controller
         if (order == null)
             return NotFound(new { message = "Không tìm thấy đơn." });
 
+        var normalizedTarget = OrderChatHub.NormalizeTarget(target);
         if (order.UserId != userId && !isAdmin && !(isSeller && sellerRestaurantId == order.RestaurantId))
             return StatusCode(403, new { message = "Không xem được chat đơn này." });
+        if (isAdmin && normalizedTarget != "admin")
+            return StatusCode(403, new { message = "Admin chỉ xem được chat kênh admin." });
+        if (isSeller && normalizedTarget != "seller")
+            return StatusCode(403, new { message = "Seller chỉ xem được chat kênh seller." });
 
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 5, 100);
-        var query = _db.OrderMessages.AsNoTracking().Where(m => m.OrderId == id);
+        var query = _db.OrderMessages.AsNoTracking()
+            .Where(m => m.OrderId == id && OrderChatHub.ParseTargetMeta(m.HiddenReason) == normalizedTarget);
         var total = await query.CountAsync();
         var items = await query
             .OrderBy(m => m.CreatedAt)
@@ -919,11 +926,12 @@ public class OrderController : Controller
                 m.UserId,
                 Username = m.User!.Username,
                 m.Message,
+                target = OrderChatHub.ParseTargetMeta(m.HiddenReason),
                 m.CreatedAt
             })
             .ToListAsync();
 
-        return Ok(new { orderId = id, page, pageSize, total, items });
+        return Ok(new { orderId = id, page, pageSize, total, target = normalizedTarget, items });
     }
 
     public class CreateReportRequest

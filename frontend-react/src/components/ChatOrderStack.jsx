@@ -4,7 +4,10 @@ import ChatFloatingBubble from "./ChatFloatingBubble";
 
 export default function ChatOrderStack() {
   const { threads } = useChat();
-  const active = useMemo(() => Object.entries(threads).filter(([, thread]) => thread?.messages?.length && !thread.ended), [threads]);
+  const active = useMemo(
+    () => Object.entries(threads).filter(([, thread]) => (thread?.messages?.length || thread?.unreadCount > 0 || thread?.open) && !thread?.ended),
+    [threads]
+  );
   if (active.length === 0) return null;
   return <ChatFloatingBubble />;
 }

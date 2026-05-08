@@ -8,362 +8,200 @@ public static class DbInitializer
 {
     public static async Task SeedAsync(AppDbContext db, IPasswordHasher<User> passwordHasher)
     {
-        if (!await db.Users.AnyAsync())
+        if (await db.Users.AnyAsync())
         {
-            await SeedFullDemoAsync(db, passwordHasher);
             return;
         }
 
-        // DB đã có user từ trước (seed cũ) → vẫn tạo seller demo nếu chưa có username "seller"
-        await EnsureDemoSellerAndRestaurantAsync(db, passwordHasher);
-    }
-
-    private static async Task SeedFullDemoAsync(AppDbContext db, IPasswordHasher<User> passwordHasher)
-    {
-        var admin = new User
-        {
-            Username = "admin",
-            FullName = "Quản trị viên",
-            Email = "admin@food.local",
-            Phone = "0900000000",
-            Address = "Hà Nội",
-            Role = Roles.Admin,
-            CreatedAt = DateTime.UtcNow
-        };
-        admin.Password = passwordHasher.HashPassword(admin, "Admin@123");
-        db.Users.Add(admin);
-
-        var customer = new User
-        {
-            Username = "user",
-            FullName = "Khách hàng mẫu",
-            Email = "user@food.local",
-            Phone = "0911111111",
-            Address = "TP.HCM",
-            Role = Roles.User,
-            CreatedAt = DateTime.UtcNow
-        };
-        customer.Password = passwordHasher.HashPassword(customer, "User@123");
-        db.Users.Add(customer);
-
-        var seller = new User
-        {
-            Username = "seller",
-            FullName = "Chủ quán mẫu",
-            Email = "seller@food.local",
-            Phone = "0922222222",
-            Address = "Đà Nẵng",
-            Role = Roles.Seller,
-            CreatedAt = DateTime.UtcNow
-        };
-        seller.Password = passwordHasher.HashPassword(seller, "Seller@123");
-        db.Users.Add(seller);
-
-        await db.SaveChangesAsync();
-
         await SeedDefaultSystemSettingsAsync(db);
-        await AddRestaurantMenuForSellerAsync(db, seller.Id);
-        await SeedDemoOrdersAndReviewsAsync(db, customer.Id, seller.Id);
-    }
-
-    private static async Task EnsureDemoSellerAndRestaurantAsync(AppDbContext db, IPasswordHasher<User> passwordHasher)
-    {
-        await SeedDefaultSystemSettingsAsync(db);
-
-        if (await db.Users.AnyAsync(u => u.Username == "seller"))
-            return;
-
-        var seller = new User
-        {
-            Username = "seller",
-            FullName = "Chủ quán mẫu",
-            Email = "seller@food.local",
-            Phone = "0922222222",
-            Address = "Đà Nẵng",
-            Role = Roles.Seller,
-            CreatedAt = DateTime.UtcNow
-        };
-        seller.Password = passwordHasher.HashPassword(seller, "Seller@123");
-        db.Users.Add(seller);
-        await db.SaveChangesAsync();
-
-        await AddRestaurantMenuForSellerAsync(db, seller.Id);
+        await SeedUsersRestaurantsAndFoodsAsync(db, passwordHasher);
     }
 
     private static async Task SeedDefaultSystemSettingsAsync(AppDbContext db)
     {
-        var defaults = new[]
-        {
-            new SystemSetting { Key = "Shipping:DefaultFee", Value = "15000", Description = "Phí ship mặc định cho mỗi đơn hàng" },
-            new SystemSetting { Key = "Shipping:FreeShipThreshold", Value = "150000", Description = "Từ giá trị đơn hàng này trở lên thì miễn phí ship" },
-            new SystemSetting { Key = "Order:CancelWindowMinutes", Value = "15", Description = "Số phút cho phép khách hủy đơn sau khi đặt" }
-        };
-
-        foreach (var setting in defaults)
-        {
-            var existing = await db.SystemSettings.FirstOrDefaultAsync(x => x.Key == setting.Key);
-            if (existing == null)
-            {
-                db.SystemSettings.Add(setting);
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(existing.Value)) existing.Value = setting.Value;
-                if (string.IsNullOrWhiteSpace(existing.Description)) existing.Description = setting.Description;
-                existing.UpdatedAt = DateTime.UtcNow;
-            }
-        }
+        db.SystemSettings.AddRange(
+            new SystemSetting { Key = "Shipping:DefaultFee", Value = "15000", Description = "Phi ship mac dinh cho moi don hang" },
+            new SystemSetting { Key = "Shipping:FreeShipThreshold", Value = "150000", Description = "Mien phi ship cho don dat nguong nay" },
+            new SystemSetting { Key = "Order:CancelWindowMinutes", Value = "15", Description = "So phut cho phep khach huy don" });
 
         await db.SaveChangesAsync();
     }
 
-    private static async Task AddRestaurantMenuForSellerAsync(AppDbContext db, int sellerUserId)
+    private static async Task SeedUsersRestaurantsAndFoodsAsync(AppDbContext db, IPasswordHasher<User> passwordHasher)
     {
-        if (await db.Restaurants.AnyAsync(r => r.OwnerId == sellerUserId))
-            return;
+        var now = DateTime.UtcNow;
 
+        var admin = CreateUser(passwordHasher, "admin", "Admin@123", "Quan tri vien", Roles.Admin, "admin@food.local", "0900000000", "Ha Noi", now);
+        var users = new[]
+        {
+            CreateUser(passwordHasher, "user01", "User@123", "Nguyen Minh Anh", Roles.User, "user01@food.local", "0911000001", "Quan 1, TP.HCM", now),
+            CreateUser(passwordHasher, "user02", "User@123", "Tran Hoang Long", Roles.User, "user02@food.local", "0911000002", "Quan 7, TP.HCM", now),
+            CreateUser(passwordHasher, "user03", "User@123", "Le Thu Ha", Roles.User, "user03@food.local", "0911000003", "Hai Chau, Da Nang", now),
+            CreateUser(passwordHasher, "user04", "User@123", "Pham Thanh Tung", Roles.User, "user04@food.local", "0911000004", "Cau Giay, Ha Noi", now),
+            CreateUser(passwordHasher, "user05", "User@123", "Vu Nhat Linh", Roles.User, "user05@food.local", "0911000005", "Ninh Kieu, Can Tho", now)
+        };
+        var sellers = new List<User>
+        {
+            CreateUser(passwordHasher, "seller01", "Seller@123", "Quan Pho 24h", Roles.Seller, "seller01@food.local", "0922000001", "Hai Chau, Da Nang", now),
+            CreateUser(passwordHasher, "seller02", "Seller@123", "Bep Nha Me Nau", Roles.Seller, "seller02@food.local", "0922000002", "Binh Thanh, TP.HCM", now),
+            CreateUser(passwordHasher, "seller03", "Seller@123", "Com Tam Sai Gon", Roles.Seller, "seller03@food.local", "0922000003", "Quan 3, TP.HCM", now),
+            CreateUser(passwordHasher, "seller04", "Seller@123", "Lau Nuong Ha Thanh", Roles.Seller, "seller04@food.local", "0922000004", "Cau Giay, Ha Noi", now),
+            CreateUser(passwordHasher, "seller05", "Seller@123", "Banh Mi Sai Gon", Roles.Seller, "seller05@food.local", "0922000005", "Quan 10, TP.HCM", now),
+            CreateUser(passwordHasher, "seller06", "Seller@123", "Bun Cha Pho Co", Roles.Seller, "seller06@food.local", "0922000006", "Ba Dinh, Ha Noi", now),
+            CreateUser(passwordHasher, "seller07", "Seller@123", "Mi Cay Han Quoc", Roles.Seller, "seller07@food.local", "0922000007", "Ninh Kieu, Can Tho", now),
+            CreateUser(passwordHasher, "seller08", "Seller@123", "Hai San Bien Xanh", Roles.Seller, "seller08@food.local", "0922000008", "Son Tra, Da Nang", now),
+            CreateUser(passwordHasher, "seller09", "Seller@123", "Ga Ran Tokbokki", Roles.Seller, "seller09@food.local", "0922000009", "Thu Duc, TP.HCM", now),
+            CreateUser(passwordHasher, "seller10", "Seller@123", "Chay An Nhien", Roles.Seller, "seller10@food.local", "0922000010", "Tay Ho, Ha Noi", now)
+        };
+
+        db.Users.Add(admin);
+        db.Users.AddRange(users);
+        db.Users.AddRange(sellers);
+        await db.SaveChangesAsync();
+
+        var restaurantSpecs = new[]
+        {
+            new RestaurantSeed("Pho Bo 24h Da Nang", "12 Tran Phu, Hai Chau, Da Nang", "02363888881", true, 10, "06:00 - 22:00"),
+            new RestaurantSeed("Bep Nha Me Nau", "201 Dien Bien Phu, Binh Thanh, TP.HCM", "02838888882", true, 15, "08:00 - 21:30"),
+            new RestaurantSeed("Com Tam Sai Gon Xua", "45 Vo Van Tan, Quan 3, TP.HCM", "02838888883", false, 0, "07:00 - 23:00"),
+            new RestaurantSeed("Lau Nuong Ha Thanh", "88 Xuan Thuy, Cau Giay, Ha Noi", "02438888884", true, 12, "10:00 - 23:30"),
+            new RestaurantSeed("Banh Mi Sai Gon", "102 Le Hong Phong, Quan 10, TP.HCM", "02838888885", true, 8, "06:30 - 20:30"),
+            new RestaurantSeed("Bun Cha Pho Co", "39 Hang Manh, Hoan Kiem, Ha Noi", "02438888886", true, 10, "07:00 - 21:00"),
+            new RestaurantSeed("Mi Cay Han Quoc", "12 Nguyen Trai, Ninh Kieu, Can Tho", "02923888887", true, 18, "09:00 - 22:30"),
+            new RestaurantSeed("Hai San Bien Xanh", "15 Ho Nghinh, Son Tra, Da Nang", "02363888888", false, 0, "10:00 - 23:00"),
+            new RestaurantSeed("Ga Ran Tokbokki", "11 Kha Van Can, Thu Duc, TP.HCM", "02838888889", true, 20, "09:00 - 23:00"),
+            new RestaurantSeed("Chay An Nhien", "66 Nhat Chieu, Tay Ho, Ha Noi", "02438888890", true, 10, "07:30 - 21:30")
+        };
+
+        for (var i = 0; i < restaurantSpecs.Length; i++)
+        {
+            await CreateRestaurantWithMenuAsync(db, sellers[i].Id, restaurantSpecs[i], BuildMenuTemplate(restaurantSpecs[i].Name));
+        }
+    }
+
+    private static User CreateUser(
+        IPasswordHasher<User> passwordHasher,
+        string username,
+        string rawPassword,
+        string fullName,
+        string role,
+        string email,
+        string phone,
+        string address,
+        DateTime createdAt)
+    {
+        var user = new User
+        {
+            Username = username,
+            FullName = fullName,
+            Email = email,
+            Phone = phone,
+            Address = address,
+            Role = role,
+            CreatedAt = createdAt
+        };
+        user.Password = passwordHasher.HashPassword(user, rawPassword);
+        return user;
+    }
+
+    private static async Task CreateRestaurantWithMenuAsync(
+        AppDbContext db,
+        int ownerId,
+        RestaurantSeed spec,
+        List<MenuItemSeed> menuItems)
+    {
         var restaurant = new Restaurant
         {
-            Name = "Quán cơm nhà",
-            OwnerId = sellerUserId,
-            Address = "123 Lê Lợi, Q1",
-            Phone = "0283888999",
-            CoverImage = "/images/foods/placeholder.svg",
-            GalleryImage1 = "/images/foods/placeholder.svg",
-            GalleryImage2 = "/images/foods/placeholder.svg",
-            GalleryImage3 = "/images/foods/placeholder.svg",
-            IsOnSale = true,
-            SalePercent = 15,
-            Status = RestaurantStatuses.Approved
+            Name = spec.Name,
+            OwnerId = ownerId,
+            Address = spec.Address,
+            Phone = spec.Phone,
+            CoverImage = "/images/restaurants/placeholder.svg",
+            GalleryImage1 = "/images/restaurants/placeholder.svg",
+            GalleryImage2 = "/images/restaurants/placeholder.svg",
+            GalleryImage3 = "/images/restaurants/placeholder.svg",
+            IsOnSale = spec.IsOnSale,
+            SalePercent = spec.SalePercent,
+            IsOpen = true,
+            IsAcceptingOrders = true,
+            OpeningHours = spec.OpeningHours,
+            Status = RestaurantStatuses.Approved,
+            StatusUpdatedAt = DateTime.UtcNow
         };
+
         db.Restaurants.Add(restaurant);
         await db.SaveChangesAsync();
 
-        var catDrink = new Category { Name = "Đồ uống", Description = "Nước, trà, cà phê", RestaurantId = restaurant.Id };
-        var catMain = new Category { Name = "Món chính", Description = "Cơm, mì, phở", RestaurantId = restaurant.Id };
-        var catSnack = new Category { Name = "Ăn vặt", Description = "Gỏi cuốn, nem", RestaurantId = restaurant.Id };
-        db.Categories.AddRange(catDrink, catMain, catSnack);
+        var categories = new List<Category>
+        {
+            new() { Name = "Mon chinh", Description = "Mon an chinh cua quan", RestaurantId = restaurant.Id },
+            new() { Name = "Mon phu", Description = "Mon phu an kem mon chinh", RestaurantId = restaurant.Id },
+            new() { Name = "Nuoc uong", Description = "Do uong va nuoc giai khat", RestaurantId = restaurant.Id },
+            new() { Name = "Mon them", Description = "Topping hoac phan an them", RestaurantId = restaurant.Id },
+            new() { Name = "Dung cu an uong", Description = "Muong, dua, khan giay, hop dung", RestaurantId = restaurant.Id }
+        };
+        db.Categories.AddRange(categories);
         await db.SaveChangesAsync();
 
-        db.Foods.AddRange(
-            new Food
+        var categoryIdByName = categories.ToDictionary(c => c.Name, c => c.Id);
+        var foods = new List<Food>();
+        for (var i = 0; i < menuItems.Count; i++)
+        {
+            var item = menuItems[i];
+            foods.Add(new Food
             {
-                Name = "Trà đào",
-                Price = 35000,
+                Name = item.Name,
+                Price = item.Price,
                 Image = "/images/foods/placeholder.svg",
-                IsOnSale = true,
-                SalePercent = 10,
-                Description = "Trà đào mát lạnh",
+                IsOnSale = spec.IsOnSale && i < 4,
+                SalePercent = spec.IsOnSale && i < 4 ? Math.Max(5, spec.SalePercent - 2) : 0,
+                Description = $"{item.Description} Du lieu da tao san, ban chi can cap nhat anh cho mon an.",
                 RestaurantId = restaurant.Id,
-                CategoryId = catDrink.Id,
+                CategoryId = categoryIdByName[item.Category],
                 IsAvailable = true,
-                StockQuantity = 100
-            },
-            new Food
-            {
-                Name = "Cà phê sữa đá",
-                Price = 25000,
-                Image = "/images/foods/placeholder.svg",
-                IsOnSale = false,
-                SalePercent = 0,
-                Description = "Cà phê phin truyền thống",
-                RestaurantId = restaurant.Id,
-                CategoryId = catDrink.Id,
-                IsAvailable = true,
-                StockQuantity = 100
-            },
-            new Food
-            {
-                Name = "Cơm tấm sườn",
-                Price = 55000,
-                Image = "/images/foods/placeholder.svg",
-                IsOnSale = true,
-                SalePercent = 12,
-                Description = "Sườn nướng, bì, chả",
-                RestaurantId = restaurant.Id,
-                CategoryId = catMain.Id,
-                IsAvailable = true,
-                StockQuantity = 100
-            },
-            new Food
-            {
-                Name = "Phở bò",
-                Price = 60000,
-                Image = "/images/foods/placeholder.svg",
-                IsOnSale = false,
-                SalePercent = 0,
-                Description = "Nước dùng đậm đà",
-                RestaurantId = restaurant.Id,
-                CategoryId = catMain.Id,
-                IsAvailable = true,
-                StockQuantity = 100
-            },
-            new Food
-            {
-                Name = "Gỏi cuốn",
-                Price = 40000,
-                Image = "/images/foods/placeholder.svg",
-                IsOnSale = false,
-                SalePercent = 0,
-                Description = "6 cuốn / phần",
-                RestaurantId = restaurant.Id,
-                CategoryId = catSnack.Id,
-                IsAvailable = true,
-                StockQuantity = 100
+                IsHidden = false,
+                StockQuantity = item.StockQuantity
             });
+        }
 
+        db.Foods.AddRange(foods);
         await db.SaveChangesAsync();
     }
 
-    /// <summary>Đơn hàng và đánh giá mẫu để demo và báo cáo (chỉ khi chưa có đơn).</summary>
-    private static async Task SeedDemoOrdersAndReviewsAsync(AppDbContext db, int customerId, int sellerUserId)
+    private static List<MenuItemSeed> BuildMenuTemplate(string restaurantName)
     {
-        if (await db.Orders.AnyAsync())
-            return;
-
-        var restaurant = await db.Restaurants.FirstOrDefaultAsync(r => r.OwnerId == sellerUserId);
-        if (restaurant == null)
-            return;
-
-        var foods = await db.Foods.Where(f => f.RestaurantId == restaurant.Id).OrderBy(f => f.Id).Take(3).ToListAsync();
-        if (foods.Count == 0)
-            return;
-
-        var t = DateTime.UtcNow;
-        var f0 = foods[0];
-        var f1 = foods[1];
-        var f2 = foods.Count > 2 ? foods[2] : foods[0];
-
-        var completed = new Order
+        return new List<MenuItemSeed>
         {
-            UserId = customerId,
-            RestaurantId = restaurant.Id,
-            OrderDate = t.AddDays(-3),
-            TotalAmount = f0.Price * 2 + f1.Price,
-            Status = OrderStatuses.Completed,
-            Address = "TP.HCM",
-            Phone = "0911111111",
-            PaymentMethod = PaymentMethods.COD,
-            PaymentStatus = PaymentStatuses.Paid,
-            PaymentSource = "Seed",
-            PaidAt = t.AddDays(-3).AddHours(2)
+            new("Mon chinh", $"{restaurantName} dac biet", 69000m, "Mon signature cua quan, ban chay nhat.", 120),
+            new("Mon chinh", "Com suon nuong", 55000m, "Com nong an kem suon nuong dam vi.", 110),
+            new("Mon chinh", "Bun bo dac biet", 59000m, "To bun day du topping thit va cha.", 100),
+            new("Mon phu", "Khoai tay chien", 32000m, "Khoai chien gion, dung kem sot.", 95),
+            new("Mon phu", "Salad rau tron", 35000m, "Salad tuoi, sot me nhe.", 90),
+            new("Mon phu", "Soup trong ngay", 28000m, "Soup nong, phuc vu kem mon chinh.", 85),
+            new("Nuoc uong", "Tra dao cam sa", 30000m, "Tra trai cay mat lanh.", 130),
+            new("Nuoc uong", "Nuoc ep cam tuoi", 32000m, "Nuoc ep nguyen chat khong duong.", 120),
+            new("Nuoc uong", "Cafe sua da", 26000m, "Cafe phin dam da truyen thong.", 115),
+            new("Mon them", "Trung op la", 12000m, "Them trung op la cho mon chinh.", 150),
+            new("Mon them", "Them thit bo", 25000m, "Phan thit bo them giau dinh duong.", 140),
+            new("Mon them", "Them pho mai", 15000m, "Pho mai an kem mon chien.", 130),
+            new("Dung cu an uong", "Bo dua muong", 3000m, "Bo dung cu an uong ve sinh.", 500),
+            new("Dung cu an uong", "Khan giay uot", 2000m, "Khan giay uot dung 1 lan.", 500),
+            new("Dung cu an uong", "Hop dung mang ve", 5000m, "Hop giu nhiet cho mon mang di.", 500)
         };
-        db.Orders.Add(completed);
-        await db.SaveChangesAsync();
-
-        db.OrderDetails.AddRange(
-            new OrderDetail { OrderId = completed.Id, FoodId = f0.Id, Quantity = 2, Price = f0.Price },
-            new OrderDetail { OrderId = completed.Id, FoodId = f1.Id, Quantity = 1, Price = f1.Price });
-
-        var food0 = await db.Foods.FindAsync(f0.Id);
-        var food1 = await db.Foods.FindAsync(f1.Id);
-        if (food0 != null)
-            food0.StockQuantity = Math.Max(0, food0.StockQuantity - 2);
-        if (food1 != null)
-            food1.StockQuantity = Math.Max(0, food1.StockQuantity - 1);
-
-        db.OrderStatusHistories.AddRange(
-            new OrderStatusHistory
-            {
-                OrderId = completed.Id,
-                FromStatus = null,
-                ToStatus = OrderStatuses.Pending,
-                ActorUserId = customerId,
-                ActorRole = Roles.User,
-                Note = "Tạo đơn (dữ liệu mẫu)",
-                CreatedAt = t.AddDays(-3)
-            },
-            new OrderStatusHistory
-            {
-                OrderId = completed.Id,
-                FromStatus = OrderStatuses.Pending,
-                ToStatus = OrderStatuses.Preparing,
-                ActorUserId = sellerUserId,
-                ActorRole = Roles.Seller,
-                CreatedAt = t.AddDays(-3).AddMinutes(15)
-            },
-            new OrderStatusHistory
-            {
-                OrderId = completed.Id,
-                FromStatus = OrderStatuses.Preparing,
-                ToStatus = OrderStatuses.Delivering,
-                ActorUserId = sellerUserId,
-                ActorRole = Roles.Seller,
-                Note = "Mã vận đơn DEMO-001",
-                CreatedAt = t.AddDays(-3).AddHours(1)
-            },
-            new OrderStatusHistory
-            {
-                OrderId = completed.Id,
-                FromStatus = OrderStatuses.Delivering,
-                ToStatus = OrderStatuses.Completed,
-                ActorUserId = sellerUserId,
-                ActorRole = Roles.Seller,
-                CreatedAt = t.AddDays(-3).AddHours(2)
-            });
-
-        db.OrderPayments.Add(new OrderPayment
-        {
-            OrderId = completed.Id,
-            Amount = completed.TotalAmount,
-            Kind = PaymentKinds.CodCapture,
-            Method = PaymentMethods.COD,
-            Status = PaymentStatuses.Paid,
-            Note = "Thu COD khi hoàn thành (dữ liệu mẫu)",
-            CreatedAt = t.AddDays(-3).AddHours(2)
-        });
-
-        db.FoodReviews.AddRange(
-            new FoodReview
-            {
-                OrderId = completed.Id,
-                FoodId = f0.Id,
-                UserId = customerId,
-                Rating = 5,
-                Comment = "Rất ngon, đóng gói cẩn thận.",
-                CreatedAt = t.AddDays(-2)
-            },
-            new FoodReview
-            {
-                OrderId = completed.Id,
-                FoodId = f1.Id,
-                UserId = customerId,
-                Rating = 4,
-                Comment = "Khá ổn.",
-                CreatedAt = t.AddDays(-2)
-            });
-
-        var pending = new Order
-        {
-            UserId = customerId,
-            RestaurantId = restaurant.Id,
-            OrderDate = t,
-            TotalAmount = f2.Price,
-            Status = OrderStatuses.Pending,
-            Address = "TP.HCM",
-            Phone = "0911111111",
-            PaymentMethod = PaymentMethods.VNPay,
-            PaymentStatus = PaymentStatuses.Pending
-        };
-        db.Orders.Add(pending);
-        await db.SaveChangesAsync();
-
-        db.OrderDetails.Add(new OrderDetail { OrderId = pending.Id, FoodId = f2.Id, Quantity = 1, Price = f2.Price });
-        var food2 = await db.Foods.FindAsync(f2.Id);
-        if (food2 != null)
-            food2.StockQuantity = Math.Max(0, food2.StockQuantity - 1);
-
-        db.OrderStatusHistories.Add(new OrderStatusHistory
-        {
-            OrderId = pending.Id,
-            FromStatus = null,
-            ToStatus = OrderStatuses.Pending,
-            ActorUserId = customerId,
-            ActorRole = Roles.User,
-            Note = "Tạo đơn (dữ liệu mẫu — chờ thanh toán VNPay)",
-            CreatedAt = t
-        });
-
-        await db.SaveChangesAsync();
     }
+
+    private sealed record RestaurantSeed(
+        string Name,
+        string Address,
+        string Phone,
+        bool IsOnSale,
+        int SalePercent,
+        string OpeningHours);
+
+    private sealed record MenuItemSeed(
+        string Category,
+        string Name,
+        decimal Price,
+        string Description,
+        int StockQuantity);
 }
