@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useToast } from "../../context/ToastContext";
 import { createAdminFood, editAdminFood, getAdminCategories, getAdminFoodDetails, getAdminRestaurants, resolveImageUrl } from "../../services/apiService";
 
 const initial = {
@@ -15,6 +16,7 @@ const initial = {
 };
 
 export default function AdminFoodFormPage() {
+  const { pushToast } = useToast();
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -63,11 +65,18 @@ export default function AdminFoodFormPage() {
       imageFile: form.imageFile || undefined,
     };
     try {
-      if (isEdit) await editAdminFood(id, payload);
-      else await createAdminFood(payload);
+      if (isEdit) {
+        await editAdminFood(id, payload);
+        pushToast("Đã cập nhật món", "success");
+      } else {
+        await createAdminFood(payload);
+        pushToast("Đã tạo món", "success");
+      }
       navigate("/admin/foods");
     } catch (error) {
-      setMsg(error?.response?.data?.message || "Lưu món thất bại");
+      const message = error?.response?.data?.message || "Lưu món thất bại";
+      setMsg(message);
+      pushToast(message, "error");
     }
   };
 

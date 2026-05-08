@@ -1,5 +1,11 @@
 import { Link, NavLink } from "react-router-dom";
+import NotificationBell from "./NotificationBell";
+import ChatOrderStack from "./ChatOrderStack";
+import ChatSupportLauncher from "./ChatSupportLauncher";
+import ChatMiniPanel from "./ChatMiniPanel";
+import { useChat } from "../context/ChatContext";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 const ICONS = {
   home: "⌂",
@@ -22,12 +28,14 @@ function roleName(role) {
 
 export default function Layout({ children }) {
   const { user, isAuthenticated, logout } = useAuth();
+  const { pushToast } = useToast();
+  const { supportOpen } = useChat();
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-wrap">
-          <Link to="/" className="brand">FoodOrder Platform</Link>
+          <Link to="/" className="brand">Xì mi food</Link>
           <span className="badge">{roleName(user?.role)}</span>
         </div>
         <nav className="menu">
@@ -41,17 +49,30 @@ export default function Layout({ children }) {
           {user?.role === "Admin" && <NavLink to="/admin">{ICONS.admin} Admin</NavLink>}
         </nav>
         <div className="auth-area">
+          {isAuthenticated && <NotificationBell />}
           {!isAuthenticated ? (
             <>
-              <Link to="/login" className="secondary icon-btn">{ICONS.login} Đăng nhập</Link>
-              <Link to="/register" className="icon-btn">{ICONS.register} Đăng ký</Link>
+              <Link to="/login" className="secondary icon-btn button-link">{ICONS.login} Đăng nhập</Link>
+              <Link to="/register" className="icon-btn button-link">{ICONS.register} Đăng ký</Link>
             </>
           ) : (
-            <button className="link-btn" onClick={logout}>{ICONS.logout} Đăng xuất</button>
+            <button
+              type="button"
+              className="link-btn icon-btn"
+              onClick={async () => {
+                await logout();
+                pushToast("Đăng xuất thành công", "success");
+              }}
+            >
+              {ICONS.logout} Đăng xuất
+            </button>
           )}
         </div>
       </header>
       <main>{children}</main>
+      {isAuthenticated && <ChatSupportLauncher />}
+      {supportOpen && <ChatMiniPanel />}
+      {isAuthenticated && <ChatOrderStack />}
       <footer className="footer">© {new Date().getFullYear()} FoodOrder Platform · Trải nghiệm đặt món hiện đại</footer>
     </div>
   );

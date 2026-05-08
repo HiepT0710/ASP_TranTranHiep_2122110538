@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ActionMenu from "../../components/ActionMenu";
-import { deleteSellerFood, getSellerFoods } from "../../services/apiService";
+import { deleteSellerFood, getSellerFoods, updateSellerFoodFlags } from "../../services/apiService";
 import { useToast } from "../../context/ToastContext";
 
 export default function SellerFoodsPage() {
@@ -18,6 +18,19 @@ export default function SellerFoodsPage() {
   useEffect(() => {
     loadData();
   }, [filter.page, filter.pageSize]);
+
+  const updateFlags = async (id, payload, successMsg) => {
+    try {
+      await updateSellerFoodFlags(id, payload);
+      setMsg(successMsg);
+      pushToast(successMsg, "success");
+      loadData();
+    } catch (error) {
+      const message = error?.response?.data?.message || "Không cập nhật được món";
+      setMsg(message);
+      pushToast(message, "error");
+    }
+  };
 
   const remove = async (id) => {
     try {
@@ -60,11 +73,19 @@ export default function SellerFoodsPage() {
               <td>{x.categoryName}</td>
               <td>{x.price}</td>
               <td>{x.stockQuantity}</td>
-              <td>{x.isAvailable ? "Đang bán" : "Ngừng bán"}</td>
+              <td>
+                <div className="row" style={{ flexWrap: "wrap" }}>
+                  <span className={`badge ${x.isAvailable ? "success" : "warning"}`}>{x.isAvailable ? "Đang bán" : "Ngừng bán"}</span>
+                  {x.isHidden && <span className="badge">Đang ẩn</span>}
+                </div>
+              </td>
               <td>
                 <ActionMenu
                   label="Thao tác"
                   items={[
+                    { label: x.isAvailable ? "Tạm dừng bán" : "Mở bán lại", onClick: () => updateFlags(x.id, { isAvailable: !x.isAvailable }, "Đã cập nhật trạng thái bán") },
+                    { label: x.isHidden ? "Hiện món" : "Ẩn món", onClick: () => updateFlags(x.id, { isHidden: !x.isHidden }, "Đã cập nhật trạng thái hiển thị") },
+                    { label: "Đặt hết hàng", onClick: () => updateFlags(x.id, { stockQuantity: 0 }, "Đã đặt món hết hàng") },
                     { label: "Sửa", onClick: () => window.location.assign(`/seller/foods/${x.id}/edit`) },
                     { label: "Xóa", onClick: () => remove(x.id), variant: "ghost" },
                   ]}

@@ -27,6 +27,11 @@ public class OrderNotificationService : IOrderNotificationService
 
     public async Task BroadcastOrderAsync(Order order)
     {
+        var ownerId = await _db.Restaurants.AsNoTracking()
+            .Where(r => r.Id == order.RestaurantId)
+            .Select(r => r.OwnerId)
+            .FirstOrDefaultAsync();
+
         var payload = new
         {
             order.Id,
@@ -34,22 +39,40 @@ public class OrderNotificationService : IOrderNotificationService
             order.TotalAmount,
             order.RestaurantId,
             order.PaymentStatus,
-            order.TrackingNumber
+            order.TrackingNumber,
+            order.CancelReason,
+            order.CancelledAt,
+            order.CancelledBy
+        };
+
+        var baseMessage = order.Status switch
+        {
+            OrderStatuses.Cancelled => $"Đơn #{order.Id} đã bị hủy",
+            OrderStatuses.Completed => $"Đơn #{order.Id} đã hoàn thành",
+            _ => $"Đơn #{order.Id}: {order.Status}"
         };
 
         await _hub.Clients.Group(OrderHub.UserGroupName(order.UserId.ToString()))
             .SendAsync("OrderStatusChanged", payload);
 
-        var msg = $"Đơn #{order.Id}: {order.Status}";
-        await _push.SendToUserAsync(order.UserId, "Đơn hàng", msg);
+        if (ownerId != 0 && ownerId != order.UserId)
+        {
+            await _hub.Clients.Group(OrderHub.SellerGroupName(order.RestaurantId))
+                .SendAsync(order.Status == OrderStatuses.Cancelled ? "OrderCancelled" : order.Status == OrderStatuses.Pending ? "OrderCreated" : "OrderStatusChanged", payload);
 
-        var ownerId = await _db.Restaurants.AsNoTracking()
-            .Where(r => r.Id == order.RestaurantId)
-            .Select(r => r.OwnerId)
-            .FirstOrDefaultAsync();
+            await _push.SendToUserAsync(ownerId, "Đơn hàng", baseMessage);
+        }
+
+        if (order.Status != OrderStatuses.Pending)
+        {
+            await _hub.Clients.Group(OrderHub.AdminGroupName())
+                .SendAsync(order.Status == OrderStatuses.Cancelled ? "OrderCancelled" : "OrderStatusChanged", payload);
+        }
+
+        await _push.SendToUserAsync(order.UserId, "Đơn hàng", baseMessage);
 
         if (ownerId != 0 && ownerId != order.UserId)
-            await _push.SendToUserAsync(ownerId, "Đơn hàng", msg);
+            await _push.SendToUserAsync(ownerId, "Đơn hàng", baseMessage);
     }
 
     public void LogEmailStub(string subject, string body) =>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useToast } from "../../context/ToastContext";
 import { createSellerFood, editSellerFood, getSellerCategories, getSellerFoodDetails, resolveImageUrl } from "../../services/apiService";
 
 const initial = {
@@ -8,12 +9,15 @@ const initial = {
   description: "",
   categoryId: "",
   isAvailable: true,
+  isHidden: false,
   stockQuantity: "",
+  saleScheduleNote: "",
   imageFile: null,
   imagePreview: "",
 };
 
 export default function SellerFoodFormPage() {
+  const { pushToast } = useToast();
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -43,7 +47,9 @@ export default function SellerFoodFormPage() {
             description: foodRes.description || "",
             categoryId: foodRes.categoryId?.toString?.() || "",
             isAvailable: !!foodRes.isAvailable,
+            isHidden: !!foodRes.isHidden,
             stockQuantity: foodRes.stockQuantity?.toString?.() || "",
+            saleScheduleNote: foodRes.saleScheduleNote || "",
             imagePreview: resolveImageUrl(foodRes.image),
           });
         }
@@ -72,15 +78,24 @@ export default function SellerFoodFormPage() {
       description: form.description,
       categoryId: form.categoryId,
       isAvailable: form.isAvailable,
+      isHidden: form.isHidden,
       stockQuantity: form.stockQuantity,
+      saleScheduleNote: form.saleScheduleNote,
       imageFile: form.imageFile || undefined,
     };
     try {
-      if (isEdit) await editSellerFood(id, payload);
-      else await createSellerFood(payload);
+      if (isEdit) {
+        await editSellerFood(id, payload);
+        pushToast("Đã cập nhật món", "success");
+      } else {
+        await createSellerFood(payload);
+        pushToast("Đã tạo món", "success");
+      }
       navigate("/seller/foods");
     } catch (error) {
-      setMsg(error?.response?.data?.message || "Lưu món thất bại");
+      const message = error?.response?.data?.message || "Lưu món thất bại";
+      setMsg(message);
+      pushToast(message, "error");
     }
   };
 
@@ -117,6 +132,11 @@ export default function SellerFoodFormPage() {
               <input type="checkbox" checked={form.isAvailable} onChange={(e) => updateField("isAvailable", e.target.checked)} />
               <span>Đang bán / hiển thị cho khách</span>
             </label>
+            <label className="panel" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={form.isHidden} onChange={(e) => updateField("isHidden", e.target.checked)} />
+              <span>Tạm ẩn món khỏi menu</span>
+            </label>
+            <textarea placeholder="Lịch bán theo thời gian (ví dụ: giảm giá 14:00-17:00, bán combo trưa)" value={form.saleScheduleNote} onChange={(e) => updateField("saleScheduleNote", e.target.value)} />
             <div className="panel soft-panel">
               <label className="eyebrow">Ảnh món</label>
               <input type="file" accept="image/*" onChange={(e) => updateField("imageFile", e.target.files?.[0] || null)} />

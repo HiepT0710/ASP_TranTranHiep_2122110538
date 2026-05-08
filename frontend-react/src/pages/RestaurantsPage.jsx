@@ -1,20 +1,33 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getRestaurants, resolveImageUrl } from "../services/apiService";
+import SortFilterBar from "../components/SortFilterBar";
+import { getBestSellers, getRestaurantSale, getRestaurants, resolveImageUrl } from "../services/apiService";
 import { SkeletonCardGrid, StateMessage } from "../components/PageStates";
+import { useToast } from "../context/ToastContext";
 
 export default function RestaurantsPage() {
-  const [q, setQ] = useState("");
-  const [items, setItems] = useState([]);
+  useToast();
+  const [restaurants, setRestaurants] = useState([]);
+  const [highlights, setHighlights] = useState({ sale: [], best: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState({ page: 1, pageSize: 12, q: "", sortBy: "rating_desc" });
+  const [meta, setMeta] = useState({ page: 1, total: 0, totalPages: 1 });
 
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await getRestaurants({ page: 1, pageSize: 20, q });
-      setItems(data.items || []);
+      const [data, sale, best] = await Promise.all([
+        getRestaurants(filter),
+        getRestaurantSale().catch(() => ({ items: [] })),
+        getBestSellers(6).catch(() => ({ items: [] })),
+      ]);
+      const total = data.total || 0;
+      const totalPages = Math.max(1, Math.ceil(total / filter.pageSize));
+      setRestaurants(data.items || []);
+      setMeta({ page: Math.min(data.page || filter.page, totalPages), total, totalPages });
+      setHighlights({ sale: sale.items || [], best: best.items || [] });
     } catch (e) {
       setError(e?.response?.data?.message || "Không tải được danh sách quán");
     } finally {
@@ -22,61 +35,86 @@ export default function RestaurantsPage() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, [filter.page, filter.pageSize, filter.q, filter.sortBy]);
 
   return (
     <section className="page">
-      <div className="page-header">
+      <div className="page-header" style={{ alignItems: "center" }}>
         <div>
-          <p className="eyebrow">Danh sách quán</p>
-          <h2>Khám phá nhà hàng và quán ăn</h2>
-          <p className="muted">Chọn quán, xem gallery ảnh, sale và truy cập menu ngay.</p>
-        </div>
-        <div className="page-actions">
-          <div className="search-box">
-            <input placeholder="Tìm quán..." value={q} onChange={(e) => setQ(e.target.value)} />
-            <button onClick={loadData}>Tìm</button>
-          </div>
+          <p className="eyebrow">Khám phá quán</p>
+          <h1>Quán ăn nổi bật</h1>
         </div>
       </div>
+
+      <SortFilterBar
+        value={filter}
+        onChange={setFilter}
+        filters={[{ key: "q", label: "Tìm quán", type: "input", placeholder: "Tên quán / địa chỉ" }]}
+        sortOptions={[
+          { value: "rating_desc", label: "Đánh giá cao" },
+          { value: "name_asc", label: "Tên A → Z" },
+          { value: "name_desc", label: "Tên Z → A" },
+          { value: "newest", label: "Mới nhất" },
+          { value: "oldest", label: "Cũ nhất" },
+        ]}
+      />
+
       {error ? (
         <StateMessage title="Không tải được quán" description={error} action={<button onClick={loadData}>Thử lại</button>} />
       ) : loading ? (
         <SkeletonCardGrid count={6} />
-      ) : items.length === 0 ? (
-        <StateMessage title="Không tìm thấy quán" description="Thử thay đổi từ khóa hoặc quay lại sau khi quán được duyệt." />
       ) : (
-        <div className="cards">
-          {items.map((r) => (
-            <article key={r.id} className="panel">
-              {(r.coverImage || r.galleryImage1) ? (
-                <img src={resolveImageUrl(r.coverImage || r.galleryImage1)} alt={r.name} style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 16, marginBottom: 12 }} />
-              ) : (
-                <div className="soft-panel" style={{ width: "100%", height: 180, borderRadius: 16, marginBottom: 12, display: "grid", placeItems: "center" }}>
-                  <span className="muted">Chưa có ảnh</span>
-                </div>
-              )}
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <span className="badge">{r.foodCount ?? 0} món</span>
-                {r.isOnSale && <span className="badge">Sale -{r.salePercent}%</span>}
+        <>
+          {highlights.sale.length > 0 && (
+            <div className="panel" style={{ marginBottom: 16 }}>
+              <h3>Quán đang sale</h3>
+              <div className="cards">
+                {highlights.sale.slice(0, 3).map((r) => (
+                  <article key={r.id} className="panel soft-panel">
+                    <b>{r.name}</b>
+                    <p className="muted">Giảm đến {r.salePercent}%</p>
+                  </article>
+                ))}
               </div>
-              <h3>{r.name}</h3>
-              <p className="muted">{r.address}</p>
-              <p>{r.phone}</p>
-              <div className="card-actions">
-                <div className="left">
-                  <Link to={`/restaurants/${r.id}`} className="link-btn">Xem chi tiết</Link>
-                  <Link to={`/foods?restaurantId=${r.id}`} className="link-btn">Xem món</Link>
-                </div>
-                <div className="right">
-                  <button className="secondary" onClick={() => window.location.assign(`/restaurants/${r.id}`)}>Mở quán</button>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+            </div>
+          )}
+
+          {restaurants.length === 0 ? (
+            <StateMessage title="Chưa có quán phù hợp" description="Hãy thử từ khóa khác hoặc đổi sắp xếp." />
+          ) : (
+            <div className="cards">
+              {restaurants.map((r) => (
+                <article key={r.id} className="panel">
+                  {r.coverImage ? (
+                    <img src={resolveImageUrl(r.coverImage)} alt={r.name} style={{ width: "100%", height: 190, objectFit: "cover", borderRadius: 16, marginBottom: 12 }} />
+                  ) : (
+                    <div className="soft-panel" style={{ width: "100%", height: 190, borderRadius: 16, marginBottom: 12, display: "grid", placeItems: "center" }}>Chưa có ảnh</div>
+                  )}
+                  <div className="row" style={{ justifyContent: "space-between" }}>
+                    <span className="badge">{r.avgRating ? `${Number(r.avgRating).toFixed(1)}★` : "Chưa có đánh giá"}</span>
+                    <span className="badge">{r.foodCount || 0} món</span>
+                    {r.isOnSale && <span className="badge">Sale -{r.salePercent}%</span>}
+                  </div>
+                  <h3>{r.name}</h3>
+                  <p className="muted">{r.address || "Chưa cập nhật địa chỉ"}</p>
+                  <p className="muted">SĐT: {r.phone || "Chưa cập nhật"}</p>
+                  <div className="card-actions">
+                    <Link className="button secondary" to={`/restaurants/${r.id}`}>Xem chi tiết</Link>
+                    <Link className="button" to={`/foods?restaurantId=${r.id}`}>Xem món</Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {meta.totalPages > 1 && (
+            <div className="row">
+              <button className="secondary" disabled={filter.page <= 1} onClick={() => setFilter({ ...filter, page: filter.page - 1 })}>Prev</button>
+              <span className="badge">Trang {meta.page} / {meta.totalPages}</span>
+              <button className="secondary" disabled={filter.page >= meta.totalPages} onClick={() => setFilter({ ...filter, page: filter.page + 1 })}>Next</button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

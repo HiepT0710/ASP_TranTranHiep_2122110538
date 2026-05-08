@@ -35,10 +35,25 @@ public class Restaurant
 
     public int SalePercent { get; set; }
 
+    /// <summary>Quán đang mở để nhận đơn hay không.</summary>
+    public bool IsOpen { get; set; } = true;
+
+    /// <summary>Tạm ngưng nhận đơn dù quán vẫn mở cửa (ví dụ quá tải).</summary>
+    public bool IsAcceptingOrders { get; set; } = true;
+
+    [MaxLength(500)]
+    public string? OpeningHours { get; set; }
+
     [Required, MaxLength(50)]
     public string Status { get; set; } = RestaurantStatuses.Pending;
+
+    [MaxLength(500)]
+    public string? StatusNote { get; set; }
+
+    public DateTime? StatusUpdatedAt { get; set; }
 
     public ICollection<Category> Categories { get; set; } = new List<Category>();
     public ICollection<Food> Foods { get; set; } = new List<Food>();
     public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public ICollection<RestaurantReview> Reviews { get; set; } = new List<RestaurantReview>();
 }

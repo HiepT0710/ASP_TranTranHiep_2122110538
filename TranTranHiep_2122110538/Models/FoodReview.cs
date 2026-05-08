@@ -22,5 +22,11 @@ public class FoodReview
     [MaxLength(2000)]
     public string? Comment { get; set; }
 
+    [MaxLength(4000)]
+    public string? ImageUrlsJson { get; set; }
+
+    public bool IsHidden { get; set; }
+    public string? HiddenReason { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

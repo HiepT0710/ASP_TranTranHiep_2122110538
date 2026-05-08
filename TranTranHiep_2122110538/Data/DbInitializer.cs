@@ -8,8 +8,6 @@ public static class DbInitializer
 {
     public static async Task SeedAsync(AppDbContext db, IPasswordHasher<User> passwordHasher)
     {
-        await db.Database.MigrateAsync();
-
         if (!await db.Users.AnyAsync())
         {
             await SeedFullDemoAsync(db, passwordHasher);
@@ -63,12 +61,15 @@ public static class DbInitializer
 
         await db.SaveChangesAsync();
 
+        await SeedDefaultSystemSettingsAsync(db);
         await AddRestaurantMenuForSellerAsync(db, seller.Id);
         await SeedDemoOrdersAndReviewsAsync(db, customer.Id, seller.Id);
     }
 
     private static async Task EnsureDemoSellerAndRestaurantAsync(AppDbContext db, IPasswordHasher<User> passwordHasher)
     {
+        await SeedDefaultSystemSettingsAsync(db);
+
         if (await db.Users.AnyAsync(u => u.Username == "seller"))
             return;
 
@@ -87,6 +88,33 @@ public static class DbInitializer
         await db.SaveChangesAsync();
 
         await AddRestaurantMenuForSellerAsync(db, seller.Id);
+    }
+
+    private static async Task SeedDefaultSystemSettingsAsync(AppDbContext db)
+    {
+        var defaults = new[]
+        {
+            new SystemSetting { Key = "Shipping:DefaultFee", Value = "15000", Description = "Phí ship mặc định cho mỗi đơn hàng" },
+            new SystemSetting { Key = "Shipping:FreeShipThreshold", Value = "150000", Description = "Từ giá trị đơn hàng này trở lên thì miễn phí ship" },
+            new SystemSetting { Key = "Order:CancelWindowMinutes", Value = "15", Description = "Số phút cho phép khách hủy đơn sau khi đặt" }
+        };
+
+        foreach (var setting in defaults)
+        {
+            var existing = await db.SystemSettings.FirstOrDefaultAsync(x => x.Key == setting.Key);
+            if (existing == null)
+            {
+                db.SystemSettings.Add(setting);
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(existing.Value)) existing.Value = setting.Value;
+                if (string.IsNullOrWhiteSpace(existing.Description)) existing.Description = setting.Description;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
     private static async Task AddRestaurantMenuForSellerAsync(AppDbContext db, int sellerUserId)
@@ -217,6 +245,7 @@ public static class DbInitializer
             Phone = "0911111111",
             PaymentMethod = PaymentMethods.COD,
             PaymentStatus = PaymentStatuses.Paid,
+            PaymentSource = "Seed",
             PaidAt = t.AddDays(-3).AddHours(2)
         };
         db.Orders.Add(completed);

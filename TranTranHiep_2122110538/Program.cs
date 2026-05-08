@@ -28,6 +28,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/AccessDenied";
         options.Cookie.Name = "FoodOrderAuth";
+        options.Cookie.SameSite = SameSiteMode.None;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.SlidingExpiration = true;
         options.Events = new CookieAuthenticationEvents
         {
@@ -72,11 +74,14 @@ builder.Services.AddSession(options =>
 builder.Services.AddSignalR();
 
 // Services
+builder.Services.Configure<TranTranHiep_2122110538.ViewModels.SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOrderAuditService, OrderAuditService>();
 builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
 builder.Services.AddScoped<IUserCartService, UserCartService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddHealthChecks();
 
@@ -133,15 +138,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
 
-    try
-    {
-        db.Database.Migrate();
-    }
-    catch
-    {
-        db.Database.EnsureCreated();
-    }
-
+    db.Database.Migrate();
     await DbInitializer.SeedAsync(db, hasher);
 }
 

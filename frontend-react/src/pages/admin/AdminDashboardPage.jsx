@@ -3,11 +3,11 @@ import { Link } from "react-router-dom";
 import { getAdminSummary } from "../../services/apiService";
 
 const quickLinks = [
-  { to: "/admin/users", label: "Quản lý users" },
-  { to: "/admin/restaurants", label: "Duyệt quán" },
-  { to: "/admin/foods", label: "Quản lý món ăn" },
-  { to: "/admin/orders", label: "Quản lý đơn" },
-  { to: "/admin/promotions", label: "Khuyến mãi & Voucher" },
+  { to: "/admin/users", label: "Người dùng" },
+  { to: "/admin/restaurants", label: "Quán ăn" },
+  { to: "/admin/reports", label: "Báo cáo" },
+  { to: "/admin/audit", label: "Audit log" },
+  { to: "/admin/settings", label: "Cấu hình" },
 ];
 
 export default function AdminDashboardPage() {
@@ -16,16 +16,24 @@ export default function AdminDashboardPage() {
     getAdminSummary().then(setData).catch(() => setData(null));
   }, []);
 
+  const cards = [
+    { label: "Users", value: data?.users ?? 0 },
+    { label: "Restaurants", value: data?.restaurants ?? 0 },
+    { label: "Orders", value: data?.orders ?? 0 },
+    { label: "Revenue", value: `${Number(data?.revenueCompletedOrders || 0).toLocaleString()} đ` },
+    { label: "Reports", value: data?.reports ?? 0 },
+    { label: "Audit logs", value: data?.auditLogs ?? 0 },
+  ];
+
   return (
     <section className="page hero-card">
       <div className="dashboard-hero">
         <div>
           <p className="eyebrow">Admin control center</p>
           <h2>Bảng điều khiển quản trị</h2>
-          <p className="muted">Theo dõi tổng quan hệ thống, thao tác nhanh với users, quán, món và đơn hàng.</p>
+          <p className="muted">Tổng hợp số liệu quan trọng và truy cập nhanh các tác vụ quản trị chính.</p>
         </div>
         <div className="panel soft-panel" style={{ padding: 18 }}>
-          <p className="eyebrow" style={{ marginBottom: 10 }}>Lối tắt thao tác</p>
           <div className="quick-actions-grid">
             {quickLinks.map((item) => (
               <Link key={item.to} to={item.to} className="quick-action-card">{item.label}</Link>
@@ -35,11 +43,11 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="dashboard-summary-grid">
-        <article className="dashboard-summary-card"><span>Users</span><strong>{data?.users ?? 0}</strong></article>
-        <article className="dashboard-summary-card"><span>Sellers</span><strong>{data?.sellers ?? 0}</strong></article>
-        <article className="dashboard-summary-card"><span>Restaurants</span><strong>{data?.restaurants ?? 0}</strong></article>
-        <article className="dashboard-summary-card"><span>Orders</span><strong>{data?.orders ?? 0}</strong></article>
+        {cards.map((card) => (
+          <article key={card.label} className="dashboard-summary-card"><span>{card.label}</span><strong>{card.value}</strong></article>
+        ))}
       </div>
+
     </section>
   );
 }

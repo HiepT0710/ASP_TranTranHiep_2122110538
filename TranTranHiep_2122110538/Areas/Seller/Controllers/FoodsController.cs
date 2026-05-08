@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TranTranHiep_2122110538.Data;
 using TranTranHiep_2122110538.Models;
+using TranTranHiep_2122110538.Services;
 using TranTranHiep_2122110538.ViewModels;
 
 namespace TranTranHiep_2122110538.Areas.Seller.Controllers;
@@ -16,11 +17,13 @@ public class FoodsController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _env;
+    private readonly IOrderAuditService _audit;
 
-    public FoodsController(AppDbContext db, IWebHostEnvironment env)
+    public FoodsController(AppDbContext db, IWebHostEnvironment env, IOrderAuditService audit)
     {
         _db = db;
         _env = env;
+        _audit = audit;
     }
 
     private async Task<Restaurant?> GetMyRestaurantAsync()
@@ -55,7 +58,9 @@ public class FoodsController : Controller
                 f.CategoryId,
                 CategoryName = f.Category!.Name,
                 f.IsAvailable,
-                f.StockQuantity
+                f.IsHidden,
+                f.StockQuantity,
+                f.SaleScheduleNote
             })
             .ToListAsync();
 
@@ -83,7 +88,9 @@ public class FoodsController : Controller
             f.CategoryId,
             CategoryName = f.Category?.Name,
             f.IsAvailable,
-            f.StockQuantity
+            f.IsHidden,
+            f.StockQuantity,
+            f.SaleScheduleNote
         });
     }
 
@@ -124,7 +131,9 @@ public class FoodsController : Controller
             RestaurantId = rest.Id,
             CategoryId = model.CategoryId,
             IsAvailable = model.IsAvailable,
+            IsHidden = model.IsHidden,
             StockQuantity = Math.Max(0, model.StockQuantity),
+            SaleScheduleNote = string.IsNullOrWhiteSpace(model.SaleScheduleNote) ? null : model.SaleScheduleNote.Trim(),
             Image = imagePath
         };
         _db.Foods.Add(food);
@@ -152,7 +161,9 @@ public class FoodsController : Controller
         food.Description = model.Description;
         food.CategoryId = model.CategoryId;
         food.IsAvailable = model.IsAvailable;
+        food.IsHidden = model.IsHidden;
         food.StockQuantity = Math.Max(0, model.StockQuantity);
+        food.SaleScheduleNote = string.IsNullOrWhiteSpace(model.SaleScheduleNote) ? null : model.SaleScheduleNote.Trim();
 
         if (model.ImageFile is { Length: > 0 })
         {
@@ -178,6 +189,40 @@ public class FoodsController : Controller
 
         await _db.SaveChangesAsync();
         return Ok(new { message = "Đã cập nhật.", food.Image });
+    }
+
+    public class UpdateFlagsRequest
+    {
+        public bool? IsAvailable { get; set; }
+        public bool? IsHidden { get; set; }
+        public int? StockQuantity { get; set; }
+    }
+
+    [HttpPut]
+    public async Task<IActionResult> UpdateFlags(int id, [FromBody] UpdateFlagsRequest body)
+    {
+        var rest = await GetMyRestaurantAsync();
+        if (rest == null)
+            return BadRequest(new { message = "Chưa có quán." });
+
+        var food = await _db.Foods.FirstOrDefaultAsync(f => f.Id == id && f.RestaurantId == rest.Id);
+        if (food == null)
+            return NotFound();
+
+        if (body.IsAvailable.HasValue) food.IsAvailable = body.IsAvailable.Value;
+        if (body.IsHidden.HasValue) food.IsHidden = body.IsHidden.Value;
+        if (body.StockQuantity.HasValue) food.StockQuantity = Math.Max(0, body.StockQuantity.Value);
+
+        _audit.AddStatusChange(0, null, "FoodFlagsUpdated", null, Roles.Seller, $"Food #{food.Id}");
+        await _db.SaveChangesAsync();
+        return Ok(new
+        {
+            message = "Đã cập nhật trạng thái món.",
+            food.Id,
+            food.IsAvailable,
+            food.IsHidden,
+            food.StockQuantity
+        });
     }
 
     [HttpDelete]

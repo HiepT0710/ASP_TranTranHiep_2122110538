@@ -21,6 +21,9 @@ public class VoucherUpsertRequest
     [Range(1, 100000)]
     public int UsageLimit { get; set; } = 1;
 
+    [Range(1, 100)]
+    public int PerUserLimit { get; set; } = 1;
+
     public DateTime? StartAt { get; set; }
     public DateTime? EndAt { get; set; }
 

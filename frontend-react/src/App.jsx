@@ -12,6 +12,8 @@ import FoodsPage from "./pages/FoodsPage";
 import FoodDetailsPage from "./pages/FoodDetailsPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import OrdersPage from "./pages/OrdersPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -22,12 +24,18 @@ import SellerCategoriesPage from "./pages/seller/SellerCategoriesPage";
 import SellerDashboardPage from "./pages/seller/SellerDashboardPage";
 import SellerFoodFormPage from "./pages/seller/SellerFoodFormPage";
 import SellerFoodsPage from "./pages/seller/SellerFoodsPage";
+import SellerOperationsPage from "./pages/seller/SellerOperationsPage";
 import SellerOrdersPage from "./pages/seller/SellerOrdersPage";
 import SellerPromotionsPage from "./pages/seller/SellerPromotionsPage";
 import SellerRestaurantPage from "./pages/seller/SellerRestaurantPage";
 import AdminPromotionsPage from "./pages/admin/AdminPromotionsPage";
 import AdminPromotionDetailsPage from "./pages/admin/AdminPromotionDetailsPage";
+import AdminVouchersPage from "./pages/admin/AdminVouchersPage";
+import AdminSystemSettingsPage from "./pages/admin/AdminSystemSettingsPage";
+import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage";
+import AdminModerationReportsPage from "./pages/admin/AdminModerationReportsPage";
 import SellerPromotionDetailsPage from "./pages/seller/SellerPromotionDetailsPage";
+import SellerAuditHistoryPage from "./pages/seller/SellerAuditHistoryPage";
 
 export default function App() {
   return (
@@ -35,6 +43,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/restaurants" element={<RestaurantsPage />} />
         <Route path="/restaurants/:id" element={<RestaurantDetailsPage />} />
@@ -92,6 +102,14 @@ export default function App() {
           }
         />
         <Route
+          path="/seller/operations"
+          element={
+            <ProtectedRoute roles={["Seller"]}>
+              <SellerOperationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/seller/foods"
           element={
             <ProtectedRoute roles={["Seller"]}>
@@ -136,6 +154,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={["Seller"]}>
               <SellerPromotionDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/seller/audit"
+          element={
+            <ProtectedRoute roles={["Seller"]}>
+              <SellerAuditHistoryPage />
             </ProtectedRoute>
           }
         />
@@ -209,6 +235,38 @@ export default function App() {
           element={
             <ProtectedRoute roles={["Admin"]}>
               <AdminPromotionDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/vouchers"
+          element={
+            <ProtectedRoute roles={["Admin"]}>
+              <AdminVouchersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute roles={["Admin"]}>
+              <AdminSystemSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <ProtectedRoute roles={["Admin"]}>
+              <AdminAuditLogsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/reports"
+          element={
+            <ProtectedRoute roles={["Admin"]}>
+              <AdminModerationReportsPage />
             </ProtectedRoute>
           }
         />

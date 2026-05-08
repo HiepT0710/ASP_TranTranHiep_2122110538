@@ -22,6 +22,50 @@ namespace TranTranHiep_2122110538.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.AuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("ActorId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("TranTranHiep_2122110538.Models.CartItem", b =>
                 {
                     b.Property<int>("Id")
@@ -101,6 +145,9 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Property<bool>("IsAvailable")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsOnSale")
                         .HasColumnType("bit");
 
@@ -118,6 +165,10 @@ namespace TranTranHiep_2122110538.Migrations
 
                     b.Property<int>("SalePercent")
                         .HasColumnType("int");
+
+                    b.Property<string>("SaleScheduleNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("StockQuantity")
                         .HasColumnType("int");
@@ -149,6 +200,18 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Property<int>("FoodId")
                         .HasColumnType("int");
 
+                    b.Property<string>("HiddenReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageUrlsJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<bool>("IsHidden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("OrderId")
                         .HasColumnType("int");
 
@@ -168,6 +231,57 @@ namespace TranTranHiep_2122110538.Migrations
                         .IsUnique();
 
                     b.ToTable("FoodReviews");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.ModerationReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("ModeratorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ReporterUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModeratorUserId");
+
+                    b.HasIndex("ReporterUserId");
+
+                    b.ToTable("ModerationReports");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Order", b =>
@@ -204,6 +318,11 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("PaymentSource")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("PaymentStatus")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -232,6 +351,9 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<DateTime?>("StatusUpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -242,6 +364,10 @@ namespace TranTranHiep_2122110538.Migrations
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
+
+                    b.Property<string>("VoucherCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
 
@@ -292,6 +418,14 @@ namespace TranTranHiep_2122110538.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("HiddenReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsHidden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Message")
                         .IsRequired()
@@ -403,6 +537,43 @@ namespace TranTranHiep_2122110538.Migrations
                     b.HasIndex("OrderId");
 
                     b.ToTable("OrderStatusHistories");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.PasswordResetToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PasswordResetTokens");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Promotion", b =>
@@ -523,13 +694,23 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<bool>("IsAcceptingOrders")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsOnSale")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsOpen")
                         .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OpeningHours")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("OwnerId")
                         .HasColumnType("int");
@@ -546,12 +727,134 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("StatusNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("StatusUpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OwnerId")
                         .IsUnique();
 
                     b.ToTable("Restaurants");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.RestaurantOperatingHour", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CloseTime")
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<string>("DayOfWeek")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("OpenTime")
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "DayOfWeek")
+                        .IsUnique();
+
+                    b.ToTable("RestaurantOperatingHours");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.RestaurantReview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("HiddenReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageUrlsJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<bool>("IsHidden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("OrderId", "RestaurantId")
+                        .IsUnique();
+
+                    b.ToTable("RestaurantReviews");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.SystemSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("SystemSettings");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.User", b =>
@@ -566,6 +869,10 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -576,6 +883,13 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Property<string>("FullName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LockReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Password")
                         .IsRequired()
@@ -624,14 +938,19 @@ namespace TranTranHiep_2122110538.Migrations
                         .HasColumnType("bit");
 
                     b.Property<decimal?>("MaxDiscountAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("MinOrderAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Note")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("PerUserLimit")
+                        .HasColumnType("int");
 
                     b.Property<int>("PromotionId")
                         .HasColumnType("int");
@@ -653,6 +972,15 @@ namespace TranTranHiep_2122110538.Migrations
                     b.HasIndex("PromotionId");
 
                     b.ToTable("Vouchers");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.AuditLog", b =>
+                {
+                    b.HasOne("TranTranHiep_2122110538.Models.User", "Actor")
+                        .WithMany("AuditLogs")
+                        .HasForeignKey("ActorId");
+
+                    b.Navigation("Actor");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.CartItem", b =>
@@ -729,6 +1057,24 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Order");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.ModerationReport", b =>
+                {
+                    b.HasOne("TranTranHiep_2122110538.Models.User", "Moderator")
+                        .WithMany("ReportsAsModerator")
+                        .HasForeignKey("ModeratorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TranTranHiep_2122110538.Models.User", "Reporter")
+                        .WithMany("ReportsAsReporter")
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Moderator");
+
+                    b.Navigation("Reporter");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Order", b =>
@@ -817,6 +1163,17 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.PasswordResetToken", b =>
+                {
+                    b.HasOne("TranTranHiep_2122110538.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Promotion", b =>
                 {
                     b.HasOne("TranTranHiep_2122110538.Models.Food", "Food")
@@ -856,6 +1213,44 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Owner");
                 });
 
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.RestaurantOperatingHour", b =>
+                {
+                    b.HasOne("TranTranHiep_2122110538.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TranTranHiep_2122110538.Models.RestaurantReview", b =>
+                {
+                    b.HasOne("TranTranHiep_2122110538.Models.Order", "Order")
+                        .WithMany("RestaurantReviews")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TranTranHiep_2122110538.Models.Restaurant", "Restaurant")
+                        .WithMany("Reviews")
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TranTranHiep_2122110538.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("Restaurant");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TranTranHiep_2122110538.Models.Voucher", b =>
                 {
                     b.HasOne("TranTranHiep_2122110538.Models.Promotion", "Promotion")
@@ -889,6 +1284,8 @@ namespace TranTranHiep_2122110538.Migrations
 
                     b.Navigation("Payments");
 
+                    b.Navigation("RestaurantReviews");
+
                     b.Navigation("StatusHistories");
                 });
 
@@ -904,10 +1301,14 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("Foods");
 
                     b.Navigation("Orders");
+
+                    b.Navigation("Reviews");
                 });
 
             modelBuilder.Entity("TranTranHiep_2122110538.Models.User", b =>
                 {
+                    b.Navigation("AuditLogs");
+
                     b.Navigation("CartItems");
 
                     b.Navigation("FoodReviews");
@@ -919,6 +1320,10 @@ namespace TranTranHiep_2122110538.Migrations
                     b.Navigation("OwnedRestaurant");
 
                     b.Navigation("PushSubscriptions");
+
+                    b.Navigation("ReportsAsModerator");
+
+                    b.Navigation("ReportsAsReporter");
                 });
 #pragma warning restore 612, 618
         }

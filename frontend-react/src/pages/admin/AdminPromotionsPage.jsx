@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useToast } from "../../context/ToastContext";
-import { createAdminPromotion, createAdminVoucher, deleteAdminPromotion, deleteAdminVoucher, getAdminFoods, getAdminPromotions, getAdminVouchers, toggleAdminPromotion, toggleAdminVoucher } from "../../services/apiService";
+import { createAdminPromotion, deleteAdminPromotion, getAdminFoods, getAdminPromotions, toggleAdminPromotion } from "../../services/apiService";
 
 const promoInitial = { name: "", description: "", scope: "Food", restaurantId: "", foodId: "", discountPercent: 10, startAt: "", endAt: "" };
-const voucherInitial = { promotionId: "", code: "", note: "", minOrderAmount: "", maxDiscountAmount: "", usageLimit: 1, startAt: "", endAt: "" };
 
 function autoCode(prefix = "SALE") {
   return `${prefix}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -13,17 +12,20 @@ function autoCode(prefix = "SALE") {
 export default function AdminPromotionsPage() {
   const { pushToast } = useToast();
   const [promotions, setPromotions] = useState([]);
-  const [vouchers, setVouchers] = useState([]);
   const [foods, setFoods] = useState([]);
   const [promo, setPromo] = useState(promoInitial);
-  const [voucher, setVoucher] = useState(voucherInitial);
   const [msg, setMsg] = useState("");
 
   const load = async () => {
-    const [p, v, f] = await Promise.all([getAdminPromotions(), getAdminVouchers(), getAdminFoods({ pageSize: 200 })]);
-    setPromotions(p.items || []);
-    setVouchers(v.items || []);
-    setFoods(f.items || []);
+    try {
+      const [p, f] = await Promise.all([getAdminPromotions(), getAdminFoods({ pageSize: 200 })]);
+      setPromotions(p.items || []);
+      setFoods(f.items || []);
+    } catch (error) {
+      const message = error?.response?.data?.message || "Không tải được dữ liệu khuyến mãi";
+      setMsg(message);
+      pushToast(message, "error");
+    }
   };
 
   useEffect(() => { load().catch(() => { setMsg("Không tải được dữ liệu khuyến mãi"); pushToast("Không tải được dữ liệu khuyến mãi", "error"); }); }, []);
@@ -52,38 +54,15 @@ export default function AdminPromotionsPage() {
     }
   };
 
-  const submitVoucher = async (e) => {
-    e.preventDefault();
-    try {
-      await createAdminVoucher({
-        ...voucher,
-        promotionId: Number(voucher.promotionId),
-        usageLimit: Number(voucher.usageLimit),
-        minOrderAmount: voucher.minOrderAmount || null,
-        maxDiscountAmount: voucher.maxDiscountAmount || null,
-        startAt: voucher.startAt || null,
-        endAt: voucher.endAt || null,
-      });
-      setVoucher(voucherInitial);
-      setMsg("Đã tạo voucher");
-      pushToast("Đã tạo voucher", "success");
-      await load();
-    } catch (error) {
-      const message = error?.response?.data?.message || "Không tạo được voucher";
-      setMsg(message);
-      pushToast(message, "error");
-    }
-  };
-
   return (
     <section className="page">
       <div className="page-header">
         <div>
-          <h2>Khuyến mãi & Voucher</h2>
-          <p className="muted">Tạo nhanh, sau đó bấm vào từng promotion để xem / sửa / xóa ở trang riêng.</p>
+          <h2>Khuyến mãi</h2>
+          <p className="muted">Quản lý promotion theo món hoặc quán, voucher đã được tách sang trang riêng.</p>
         </div>
         <div className="row">
-          <Link to="/admin/promotions" className="secondary">Trang quản lý</Link>
+          <Link to="/admin/vouchers" className="secondary">Quản lý voucher</Link>
         </div>
       </div>
 
@@ -121,28 +100,31 @@ export default function AdminPromotionsPage() {
           <button type="submit">Tạo promotion</button>
         </form>
 
-        <form className="panel form" onSubmit={submitVoucher}>
-          <h3>Tạo voucher</h3>
-          <select value={voucher.promotionId} onChange={(e) => setVoucher({ ...voucher, promotionId: e.target.value })}>
-            <option value="">-- Chọn promotion --</option>
-            {promotions.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.discountPercent}%)</option>)}
-          </select>
-          <div className="row">
-            <input placeholder="CODE" value={voucher.code} onChange={(e) => setVoucher({ ...voucher, code: e.target.value })} />
-            <button type="button" className="secondary" onClick={() => setVoucher({ ...voucher, code: autoCode() })}>Sinh code</button>
+        <div className="panel soft-panel">
+          <h3>Gợi ý nhanh</h3>
+          <p className="muted">Promotion chỉ quản lý % giảm theo quán hoặc món. Voucher là lớp mã riêng, dùng để thêm điều kiện như đơn tối thiểu hoặc giới hạn mỗi user.</p>
+          <div className="stat-grid" style={{ marginTop: 16 }}>
+            <div className="stat-card">
+              <span>#</span>
+              <strong>{promotions.length}</strong>
+              <p className="muted">Promotion</p>
+            </div>
+            <div className="stat-card">
+              <span>↗</span>
+              <strong>{promotions.filter((p) => p.isActive).length}</strong>
+              <p className="muted">Đang bật</p>
+            </div>
+            <div className="stat-card">
+              <span>⏱</span>
+              <strong>{promotions.filter((p) => new Date(p.endAt) > new Date()).length}</strong>
+              <p className="muted">Còn hạn</p>
+            </div>
           </div>
-          <input placeholder="Ghi chú" value={voucher.note} onChange={(e) => setVoucher({ ...voucher, note: e.target.value })} />
-          <div className="split">
-            <input placeholder="Đơn tối thiểu" value={voucher.minOrderAmount} onChange={(e) => setVoucher({ ...voucher, minOrderAmount: e.target.value })} />
-            <input placeholder="Giảm tối đa" value={voucher.maxDiscountAmount} onChange={(e) => setVoucher({ ...voucher, maxDiscountAmount: e.target.value })} />
+          <div className="row" style={{ marginTop: 16 }}>
+            <Link to="/admin/vouchers" className="button">Đi tới voucher</Link>
+            <Link to="/admin/promotions" className="button secondary">Ở lại trang promotion</Link>
           </div>
-          <div className="split">
-            <input type="number" min="1" value={voucher.usageLimit} onChange={(e) => setVoucher({ ...voucher, usageLimit: e.target.value })} />
-            <input type="datetime-local" value={voucher.startAt} onChange={(e) => setVoucher({ ...voucher, startAt: e.target.value })} />
-          </div>
-          <input type="datetime-local" value={voucher.endAt} onChange={(e) => setVoucher({ ...voucher, endAt: e.target.value })} />
-          <button type="submit">Tạo voucher</button>
-        </form>
+        </div>
       </div>
 
       <h3>Promotion</h3>
@@ -161,24 +143,6 @@ export default function AdminPromotionsPage() {
               <Link to={`/admin/promotions/${p.id}`} className="secondary">Xem / sửa</Link>
               <button onClick={async () => { await toggleAdminPromotion(p.id); pushToast("Đã đổi trạng thái promotion", "info"); await load(); }}>Bật/tắt</button>
               <button className="secondary" onClick={async () => { await deleteAdminPromotion(p.id); pushToast("Đã xóa promotion", "success"); await load(); }}>Xóa</button>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      <h3>Voucher</h3>
-      <div className="cards">
-        {vouchers.map((v) => (
-          <article key={v.id} className="panel">
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <b>{v.code}</b>
-              <span className="badge">{v.discountPercent}%</span>
-            </div>
-            <p className="muted">{v.promotionName}</p>
-            <p>{v.isActive ? "Đang bật" : "Đang tắt"}</p>
-            <div className="row">
-              <button onClick={async () => { await toggleAdminVoucher(v.id); pushToast("Đã đổi trạng thái voucher", "info"); await load(); }}>Bật/tắt</button>
-              <button className="secondary" onClick={async () => { await deleteAdminVoucher(v.id); pushToast("Đã xóa voucher", "success"); await load(); }}>Xóa</button>
             </div>
           </article>
         ))}

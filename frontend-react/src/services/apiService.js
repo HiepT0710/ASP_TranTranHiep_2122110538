@@ -1,431 +1,221 @@
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import { api, toQueryString } from "../api";
 
-export function resolveImageUrl(image) {
-  if (!image) return "";
-  if (image.startsWith("http://") || image.startsWith("https://")) return image;
-  if (image.startsWith("/")) return `${api.defaults.baseURL}${image}`;
-  return `${api.defaults.baseURL}/${image.replace(/^\/+/, "")}`;
-}
-
-export async function getMe() {
-  const res = await api.get("/Account/Me");
-  return res.data;
-}
-
-export async function login(payload) {
-  const res = await api.post("/Account/Login", payload);
-  return res.data;
-}
-
-export async function logout() {
-  const res = await api.post("/Account/Logout", {});
-  return res.data;
-}
-
-export async function registerUser(payload) {
-  const res = await api.post("/Account/Register", payload);
-  return res.data;
-}
-
-export async function registerSeller(payload) {
-  const res = await api.post("/Account/RegisterSeller", payload);
-  return res.data;
-}
-
-export async function getProfile() {
-  const res = await api.get("/Account/Profile");
-  return res.data;
-}
-
-export async function updateProfile(payload) {
-  const res = await api.put("/Account/Profile", payload);
-  return res.data;
-}
-
-export async function getRestaurants(query = {}) {
-  const res = await api.get(`/Restaurant/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function getSaleRestaurants() {
-  const res = await api.get("/Restaurant/Sale");
-  return res.data;
-}
-
-export async function getRestaurantDetails(id) {
-  const res = await api.get(`/Restaurant/Details/${id}`);
-  return res.data;
-}
-
-export async function getFoods(query = {}) {
-  const res = await api.get(`/Food/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function getBestFoods(take = 8) {
-  const res = await api.get(`/Restaurant/BestSellers?take=${take}`);
-  return res.data;
-}
-
-export async function getFoodDetails(id) {
-  const res = await api.get(`/Food/Details/${id}`);
-  return res.data;
-}
-
-export async function getSaleFoods() {
-  const res = await api.get("/Food/Sale");
-  return res.data;
-}
-
-export async function getFoodReviews(foodId, query = {}) {
-  const res = await api.get(`/Food/Reviews?foodId=${foodId}${toQueryString(query).replace("?", "&")}`);
-  return res.data;
-}
-
-export async function getFoodCategories(restaurantId) {
-  const res = await api.get(`/Food/Categories?restaurantId=${restaurantId}`);
-  return res.data;
-}
-
-export async function getCart() {
-  const res = await api.get("/Cart/Index");
-  return res.data;
-}
-
-export async function addToCart(payload) {
-  const res = await api.post("/Cart/Add", payload);
-  return res.data;
-}
-
-export async function updateCart(payload) {
-  const res = await api.post("/Cart/Update", payload);
-  return res.data;
-}
-
-export async function removeFromCart(foodId) {
-  const res = await api.post("/Cart/Remove", { foodId });
-  return res.data;
-}
-
-export async function clearCart() {
-  const res = await api.post("/Cart/Clear", {});
-  return res.data;
-}
-
-export async function checkout(payload) {
-  const res = await api.post("/Order/Checkout", payload);
-  return res.data;
-}
-
-export async function getMyOrders(query = {}) {
-  const res = await api.get(`/Order/MyOrders${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function cancelOrder(id, reason) {
-  const res = await api.post(`/Order/Cancel?id=${id}`, { reason });
-  return res.data;
-}
-
-export async function getOrderDetails(id) {
-  const res = await api.get(`/Order/Details/${id}`);
-  return res.data;
-}
-
-export async function getOrderStatusHistory(id) {
-  const res = await api.get(`/Order/StatusHistory/${id}`);
-  return res.data;
-}
-
-export async function getOrderChatMessages(id, query = {}) {
-  const res = await api.get(`/Order/ChatMessages/${id}${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function submitOrderReview(payload) {
-  const res = await api.post("/Order/SubmitReview", payload);
-  return res.data;
-}
-
-export async function getSellerSummary() {
-  const res = await api.get("/Seller/Statistics/Summary");
-  return res.data;
-}
-
-export async function getSellerCategories() {
-  const res = await api.get("/Seller/Categories/Index");
-  return res.data;
-}
-
-export async function getSellerCategoryDetails(id) {
-  const res = await api.get(`/Seller/Categories/Details/${id}`);
-  return res.data;
-}
-
-export async function createSellerCategory(payload) {
-  const res = await api.post("/Seller/Categories/Create", payload);
-  return res.data;
-}
-
-export async function updateSellerCategory(id, payload) {
-  const res = await api.put(`/Seller/Categories/Edit/${id}`, payload);
-  return res.data;
-}
-
-export async function deleteSellerCategory(id) {
-  const res = await api.delete(`/Seller/Categories/Delete/${id}`);
-  return res.data;
-}
-
-export async function getSellerFoods(query = {}) {
-  const res = await api.get(`/Seller/Foods/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function getSellerFoodDetails(id) {
-  const res = await api.get(`/Seller/Foods/Details/${id}`);
-  return res.data;
-}
-
-function toFormData(payload) {
-  const formData = new FormData();
-  Object.entries(payload).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) formData.append(key, value);
-  });
-  return formData;
-}
-
-export async function createSellerFood(payload) {
-  const res = await api.post("/Seller/Foods/Create", toFormData(payload), {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  return res.data;
-}
-
-export async function editSellerFood(id, payload) {
-  const res = await api.put(`/Seller/Foods/Edit?id=${id}`, toFormData(payload), {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  return res.data;
-}
-
-export async function deleteSellerFood(id) {
-  const res = await api.delete(`/Seller/Foods/Delete?id=${id}`);
-  return res.data;
-}
-
-export async function getSellerOrders(query = {}) {
-  const res = await api.get(`/Seller/Orders/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function sellerUpdateOrderStatus(id, payload) {
-  const res = await api.post(`/Seller/Orders/UpdateStatus/${id}`, payload);
-  return res.data;
-}
-
-export async function getAdminSummary() {
-  const res = await api.get("/Admin/Statistics/Summary");
-  return res.data;
-}
-
-export async function getAdminUsers(query = {}) {
-  const res = await api.get(`/Admin/Users/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function updateAdminUserRole(id, role) {
-  const res = await api.put(`/Admin/Users/EditRole/${id}`, { role });
-  return res.data;
-}
-
-export async function getAdminRestaurants(query = {}) {
-  const res = await api.get(`/Admin/Restaurants/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function adminRestaurantAction(id, action) {
-  const res = await api.post(`/Admin/Restaurants/${action}/${id}`, {});
-  return res.data;
-}
-
-export async function getAdminOrders(query = {}) {
-  const res = await api.get(`/Admin/Orders/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function getAdminFoods(query = {}) {
-  const res = await api.get(`/Admin/Foods/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function getAdminFoodDetails(id) {
-  const res = await api.get(`/Admin/Foods/Details/${id}`);
-  return res.data;
-}
-
-export async function createAdminFood(payload) {
-  const res = await api.post("/Admin/Foods/Create", toFormData(payload), {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  return res.data;
-}
-
-export async function editAdminFood(id, payload) {
-  const res = await api.put(`/Admin/Foods/Edit?id=${id}`, toFormData(payload), {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  return res.data;
-}
-
-export async function deleteAdminFood(id) {
-  const res = await api.delete(`/Admin/Foods/Delete/${id}`);
-  return res.data;
-}
-
-export async function getAdminCategories() {
-  const res = await api.get("/Admin/Categories/Index");
-  return res.data;
-}
-
-export async function adminUpdateOrder(id, status) {
-  const res = await api.post(`/Admin/Orders/UpdateStatus/${id}`, { status });
-  return res.data;
-}
-
-export async function getAdminPromotions() {
-  const res = await api.get("/Admin/Promotions/Index");
-  return res.data;
-}
-
-export async function getAdminPromotionDetails(id) {
-  const res = await api.get(`/Admin/Promotions/Details/${id}`);
-  return res.data;
-}
-
-export async function createAdminPromotion(payload) {
-  const res = await api.post("/Admin/Promotions/Create", payload);
-  return res.data;
-}
-
-export async function toggleAdminPromotion(id) {
-  const res = await api.put(`/Admin/Promotions/Toggle/${id}`);
-  return res.data;
-}
-
-
-export async function deleteAdminPromotion(id) {
-  const res = await api.delete(`/Admin/Promotions/Delete/${id}`);
-  return res.data;
-}
-
-export async function editAdminPromotion(id, payload) {
-  const res = await api.put(`/Admin/Promotions/Edit/${id}`, payload);
-  return res.data;
-}
-
-export async function editAdminVoucher(id, payload) {
-  const res = await api.put(`/Admin/Vouchers/Edit/${id}`, payload);
-  return res.data;
-}
-
-export async function getAdminVouchers(query = {}) {
-  const res = await api.get(`/Admin/Vouchers/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function createAdminVoucher(payload) {
-  const res = await api.post("/Admin/Vouchers/Create", payload);
-  return res.data;
-}
-
-export async function toggleAdminVoucher(id) {
-  const res = await api.put(`/Admin/Vouchers/Toggle/${id}`);
-  return res.data;
-}
-
-
-export async function deleteAdminVoucher(id) {
-  const res = await api.delete(`/Admin/Vouchers/Delete/${id}`);
-  return res.data;
-}
-
-export async function getSellerPromotions() {
-  const res = await api.get("/Seller/Promotions/Index");
-  return res.data;
-}
-
-export async function getSellerPromotionDetails(id) {
-  const res = await api.get(`/Seller/Promotions/Details/${id}`);
-  return res.data;
-}
-
-export async function createSellerPromotion(payload) {
-  const res = await api.post("/Seller/Promotions/Create", payload);
-  return res.data;
-}
-
-export async function editSellerPromotion(id, payload) {
-  const res = await api.put(`/Seller/Promotions/Edit/${id}`, payload);
-  return res.data;
-}
-
-export async function toggleSellerPromotion(id) {
-  const res = await api.put(`/Seller/Promotions/Toggle/${id}`);
-  return res.data;
-}
-
-export async function deleteSellerPromotion(id) {
-  const res = await api.delete(`/Seller/Promotions/Delete/${id}`);
-  return res.data;
-}
-
-export async function getSellerVouchers(query = {}) {
-  const res = await api.get(`/Seller/Vouchers/Index${toQueryString(query)}`);
-  return res.data;
-}
-
-export async function getSellerVoucherDetails(id) {
-  const res = await api.get(`/Seller/Vouchers/Details/${id}`);
-  return res.data;
-}
-
-export async function createSellerVoucher(payload) {
-  const res = await api.post("/Seller/Vouchers/Create", payload);
-  return res.data;
-}
-
-export async function editSellerVoucher(id, payload) {
-  const res = await api.put(`/Seller/Vouchers/Edit/${id}`, payload);
-  return res.data;
-}
-
-export async function toggleSellerVoucher(id) {
-  const res = await api.put(`/Seller/Vouchers/Toggle/${id}`);
-  return res.data;
-}
-
-export async function deleteSellerVoucher(id) {
-  const res = await api.delete(`/Seller/Vouchers/Delete/${id}`);
-  return res.data;
-}
-
-export async function getSellerRestaurant() {
-  const res = await api.get("/Seller/Restaurants/My");
-  return res.data;
-}
-
-export async function updateSellerRestaurantImages(payload) {
+const unwrap = (res) => res.data;
+
+export const resolveImageUrl = (path) => {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path;
+  const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:5208";
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
+export const createOrderNotificationConnection = () => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5208";
+  return new HubConnectionBuilder()
+    .withUrl(`${baseUrl}/hubs/order`, { withCredentials: true })
+    .withAutomaticReconnect()
+    .configureLogging(LogLevel.Warning)
+    .build();
+};
+
+export const createOrderChatConnection = () => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5208";
+  return new HubConnectionBuilder()
+    .withUrl(`${baseUrl}/hubs/orderchat`, { withCredentials: true })
+    .withAutomaticReconnect()
+    .configureLogging(LogLevel.Warning)
+    .build();
+};
+
+export const sendOrderChatMessage = async (connection, orderId, message, target = "seller") => {
+  if (!connection) throw new Error("Chat connection is not ready");
+  return connection.invoke("SendOrderMessage", Number(orderId), String(message || ""), String(target || "seller"));
+};
+
+export const getAdminSummary = async () => unwrap(await api.get(`/Admin/Statistics/Summary`));
+export const getSystemSettings = async () => unwrap(await api.get(`/Order/SystemSettings`));
+export const getAdminUsers = async (params = {}) => unwrap(await api.get(`/Admin/Users/Index${toQueryString(params)}`));
+export const getAdminUserDetails = async (id) => unwrap(await api.get(`/Admin/Users/Details/${id}`));
+export const updateAdminUserRole = async (id, role) => unwrap(await api.put(`/Admin/Users/EditRole/${id}`, { role }));
+export const resetAdminUserRole = async (id) => unwrap(await api.post(`/Admin/Users/ResetRole/${id}`));
+export const lockAdminUser = async (id, reason) => unwrap(await api.post(`/Admin/Users/Lock/${id}`, { reason }));
+export const unlockAdminUser = async (id) => unwrap(await api.post(`/Admin/Users/Unlock/${id}`));
+export const deleteAdminUser = async (id) => unwrap(await api.delete(`/Admin/Users/Delete/${id}`));
+
+export const getAdminRestaurants = async (params = {}) => unwrap(await api.get(`/Admin/Restaurants/Index${toQueryString(params)}`));
+export const getAdminRestaurantDetails = async (id) => unwrap(await api.get(`/Admin/Restaurants/Details/${id}`));
+export const adminRestaurantAction = async (id, action, payload = {}) => unwrap(await api.post(`/Admin/Restaurants/${action}/${id}`, payload));
+export const approveAdminRestaurant = async (id, payload) => adminRestaurantAction(id, "Approve", payload);
+export const rejectAdminRestaurant = async (id, payload) => adminRestaurantAction(id, "Reject", payload);
+export const suspendAdminRestaurant = async (id, payload) => adminRestaurantAction(id, "Suspend", payload);
+export const reopenAdminRestaurant = async (id, payload) => adminRestaurantAction(id, "Reopen", payload);
+export const deleteAdminRestaurant = async (id) => unwrap(await api.delete(`/Admin/Restaurants/Delete/${id}`));
+
+export const getAdminCategories = async () => unwrap(await api.get(`/Admin/Categories/Index`));
+
+export const getAdminFoods = async (params = {}) => unwrap(await api.get(`/Admin/Foods/Index${toQueryString(params)}`));
+export const getAdminFoodDetails = async (id) => unwrap(await api.get(`/Admin/Foods/Details/${id}`));
+export const createAdminFood = async (payload) => {
   const formData = new FormData();
   Object.entries(payload || {}).forEach(([key, value]) => {
-    if (typeof value === "boolean") {
-      if (value) formData.append(key, "true");
-      return;
-    }
     if (value !== undefined && value !== null && value !== "") formData.append(key, value);
   });
-  const res = await api.put("/Seller/Restaurants/UpdateImages", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const res = await api.post(`/Admin/Foods/Create`, formData, { headers: { "Content-Type": "multipart/form-data" } });
   return res.data;
-}
+};
+export const editAdminFood = async (id, payload) => {
+  const formData = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") formData.append(key, value);
+  });
+  const res = await api.put(`/Admin/Foods/Edit/${id}`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+};
+export const deleteAdminFood = async (id) => unwrap(await api.delete(`/Admin/Foods/Delete/${id}`));
+
+export const getAdminPromotions = async () => unwrap(await api.get(`/Admin/Promotions/Index`));
+export const getAdminPromotionDetails = async (id) => unwrap(await api.get(`/Admin/Promotions/Details/${id}`));
+export const createAdminPromotion = async (payload) => unwrap(await api.post(`/Admin/Promotions/Create`, payload));
+export const editAdminPromotion = async (id, payload) => unwrap(await api.put(`/Admin/Promotions/Edit/${id}`, payload));
+export const toggleAdminPromotion = async (id) => unwrap(await api.post(`/Admin/Promotions/Toggle/${id}`));
+export const deleteAdminPromotion = async (id) => unwrap(await api.delete(`/Admin/Promotions/Delete/${id}`));
+
+export const getAdminVouchers = async () => unwrap(await api.get(`/Admin/Vouchers/Index`));
+export const getAdminVoucherDetails = async (id) => unwrap(await api.get(`/Admin/Vouchers/Details/${id}`));
+export const getAdminSettings = async () => unwrap(await api.get(`/Admin/Settings/Index`));
+export const upsertAdminSetting = async (payload) => unwrap(await api.put(`/Admin/Settings/Upsert`, payload));
+export const getAdminAuditLogs = async (params = {}) => unwrap(await api.get(`/Admin/Audit/Index${toQueryString(params)}`));
+export const getAdminReports = async (params = {}) => unwrap(await api.get(`/Admin/Reports/Index${toQueryString(params)}`));
+export const resolveAdminReport = async (id, payload) => unwrap(await api.post(`/Admin/Reports/Resolve/${id}`, payload));
+export const createAdminVoucher = async (payload) => unwrap(await api.post(`/Admin/Vouchers/Create`, payload));
+export const editAdminVoucher = async (id, payload) => unwrap(await api.put(`/Admin/Vouchers/Edit/${id}`, payload));
+export const toggleAdminVoucher = async (id) => unwrap(await api.post(`/Admin/Vouchers/Toggle/${id}`));
+export const deleteAdminVoucher = async (id) => unwrap(await api.delete(`/Admin/Vouchers/Delete/${id}`));
+
+export const getAdminOrders = async (params = {}) => unwrap(await api.get(`/Admin/Orders/Index${toQueryString(params)}`));
+export const adminUpdateOrder = async (id, status) => unwrap(await api.post(`/Admin/Orders/Update/${id}`, { status }));
+
+export const getSellerSummary = async () => unwrap(await api.get(`/Seller/Statistics/Summary`));
+export const getSellerDashboard = async (params = {}) => unwrap(await api.get(`/Seller/Dashboard/Summary${toQueryString(params)}`));
+export const getSellerAuditLogs = async (params = {}) => unwrap(await api.get(`/Seller/Audit/Index${toQueryString(params)}`));
+export const getSellerRestaurant = async () => unwrap(await api.get(`/Seller/Restaurants/My`));
+export const getSellerRestaurantOperations = async () => unwrap(await api.get(`/Seller/RestaurantOperations/Overview`));
+export const updateSellerRestaurantState = async (payload) => unwrap(await api.put(`/Seller/RestaurantOperations/UpdateState`, payload));
+export const upsertSellerOperatingHour = async (payload) => unwrap(await api.put(`/Seller/RestaurantOperations/UpsertHours`, payload));
+export const updateSellerRestaurantImages = async (payload) => {
+  const formData = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value instanceof File) formData.append(key, value);
+    else if (value !== undefined && value !== null) formData.append(key, value);
+  });
+  const res = await api.put(`/Seller/Restaurants/UpdateImages`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+};
+export const getSellerOrders = async (params = {}) => unwrap(await api.get(`/Seller/Orders/Index${toQueryString(params)}`));
+export const sellerUpdateOrderStatus = async (id, payload) => unwrap(await api.post(`/Seller/Orders/UpdateStatus/${id}`, payload));
+export const sellerRejectOrder = async (id, payload) => unwrap(await api.post(`/Seller/Orders/Reject/${id}`, payload));
+export const getSellerPromotions = async () => unwrap(await api.get(`/Seller/Promotions/Index`));
+export const getSellerPromotionDetails = async (id) => unwrap(await api.get(`/Seller/Promotions/Details/${id}`));
+export const createSellerPromotion = async (payload) => unwrap(await api.post(`/Seller/Promotions/Create`, payload));
+export const editSellerPromotion = async (id, payload) => unwrap(await api.put(`/Seller/Promotions/Edit/${id}`, payload));
+export const updateSellerPromotion = editSellerPromotion;
+export const toggleSellerPromotion = async (id) => unwrap(await api.put(`/Seller/Promotions/Toggle/${id}`));
+export const deleteSellerPromotion = async (id) => unwrap(await api.delete(`/Seller/Promotions/Delete/${id}`));
+
+export const getSellerVouchers = async (params = {}) => unwrap(await api.get(`/Seller/Vouchers/Index${toQueryString(params)}`));
+export const getSellerVoucherDetails = async (id) => unwrap(await api.get(`/Seller/Vouchers/Details/${id}`));
+export const createSellerVoucher = async (payload) => unwrap(await api.post(`/Seller/Vouchers/Create`, payload));
+export const editSellerVoucher = async (id, payload) => unwrap(await api.put(`/Seller/Vouchers/Edit/${id}`, payload));
+export const updateSellerVoucher = editSellerVoucher;
+export const toggleSellerVoucher = async (id) => unwrap(await api.put(`/Seller/Vouchers/Toggle/${id}`));
+export const deleteSellerVoucher = async (id) => unwrap(await api.delete(`/Seller/Vouchers/Delete/${id}`));
+
+export const getSellerCategories = async () => unwrap(await api.get(`/Seller/Categories/Index`));
+export const getSellerCategoryDetails = async (id) => unwrap(await api.get(`/Seller/Categories/Details/${id}`));
+export const createSellerCategory = async (payload) => unwrap(await api.post(`/Seller/Categories/Create`, payload));
+export const updateSellerCategory = async (id, payload) => unwrap(await api.put(`/Seller/Categories/Edit/${id}`, payload));
+export const deleteSellerCategory = async (id) => unwrap(await api.delete(`/Seller/Categories/Delete/${id}`));
+
+export const getSellerFoods = async (params = {}) => unwrap(await api.get(`/Seller/Foods/Index${toQueryString(params)}`));
+export const getSellerFoodDetails = async (id) => unwrap(await api.get(`/Seller/Foods/Details/${id}`));
+export const createSellerFood = async (payload) => {
+  const formData = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") formData.append(key, value);
+  });
+  const res = await api.post(`/Seller/Foods/Create`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+};
+export const editSellerFood = async (id, payload) => {
+  const formData = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") formData.append(key, value);
+  });
+  const res = await api.put(`/Seller/Foods/Edit/${id}`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+};
+export const updateSellerFood = editSellerFood;
+export const updateSellerFoodFlags = async (id, payload) => unwrap(await api.put(`/Seller/Foods/UpdateFlags/${id}`, payload));
+export const deleteSellerFood = async (id) => unwrap(await api.delete(`/Seller/Foods/Delete/${id}`));
+
+export const getFoods = async (params = {}) => unwrap(await api.get(`/Food/Index${toQueryString(params)}`));
+export const getFoodDetails = async (id) => unwrap(await api.get(`/Food/Details/${id}`));
+export const getFoodReviews = async (foodIdOrParams = {}, maybeParams = {}) => {
+  const params = typeof foodIdOrParams === "object" && foodIdOrParams !== null
+    ? foodIdOrParams
+    : { foodId: foodIdOrParams, ...maybeParams };
+  return unwrap(await api.get(`/Food/Reviews${toQueryString(params)}`));
+};
+export const getFoodCategories = async (restaurantId) => unwrap(await api.get(`/Food/Categories${toQueryString({ restaurantId })}`));
+export const getFoodCategoriesByRouteId = getFoodCategories;
+
+export const getRestaurants = async (params = {}) => unwrap(await api.get(`/Restaurant/Index${toQueryString(params)}`));
+export const getRestaurantDetails = async (id) => unwrap(await api.get(`/Restaurant/Details/${id}`));
+export const getRestaurantReviews = async (params = {}) => unwrap(await api.get(`/Restaurant/Reviews${toQueryString(params)}`));
+export const getRestaurantSale = async () => unwrap(await api.get(`/Restaurant/Sale`));
+export const getSaleRestaurants = getRestaurantSale;
+export const getBestSellers = async (take = 8) => unwrap(await api.get(`/Restaurant/BestSellers${toQueryString({ take })}`));
+export const getBestFoods = getBestSellers;
+
+export const getCart = async () => unwrap(await api.get(`/Cart/Index`));
+export const addToCart = async (payload) => unwrap(await api.post(`/Cart/Add`, payload));
+export const updateCart = async (payload) => unwrap(await api.post(`/Cart/Update`, payload));
+export const removeFromCart = async (foodId) => unwrap(await api.post(`/Cart/Remove/${foodId}`));
+export const clearCart = async () => unwrap(await api.post(`/Cart/Clear`));
+
+export const checkout = async (payload) => unwrap(await api.post(`/Order/Checkout`, payload));
+export const getVoucherSuggestions = async () => unwrap(await api.get(`/Order/VoucherSuggestions`));
+export const simulateOnlinePayment = async (id) => unwrap(await api.post(`/Order/SimulateOnlinePayment/${id}`));
+export const getMyOrders = async (params = {}) => unwrap(await api.get(`/Order/MyOrders${toQueryString(params)}`));
+export const cancelOrder = async (id, reason) => unwrap(await api.post(`/Order/Cancel/${id}`, { reason }));
+export const getOrderDetails = async (id) => unwrap(await api.get(`/Order/Details/${id}`));
+export const getOrderStatusHistory = async (id) => unwrap(await api.get(`/Order/StatusHistory/${id}`));
+export const getOrderChatMessages = async (id, params = {}) => unwrap(await api.get(`/Order/ChatMessages/${id}${toQueryString(params)}`));
+export const submitOrderReview = async (payload) => unwrap(await api.post(`/Order/SubmitReview`, payload));
+export const submitRestaurantReview = async (payload) => unwrap(await api.post(`/Order/SubmitRestaurantReview`, payload));
+export const createModerationReport = async (payload) => unwrap(await api.post(`/Order/CreateReport`, payload));
+
+export const getProfile = async () => unwrap(await api.get(`/Account/Profile`));
+export const updateProfile = async (payload) => unwrap(await api.put(`/Account/Profile`, payload));
+export const updateAvatar = async (file) => {
+  const formData = new FormData();
+  formData.append("Avatar", file);
+  const res = await api.post(`/Account/Avatar`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+};
+export const changePassword = async (payload) => unwrap(await api.post(`/Account/ChangePassword`, payload));
+export const getMe = async () => unwrap(await api.get(`/Account/Me`));
+export const login = async (payload) => unwrap(await api.post(`/Account/Login`, payload));
+export const logout = async () => unwrap(await api.post(`/Account/Logout`));
+export const registerUser = async (payload) => unwrap(await api.post(`/Account/Register`, payload));
+export const registerSeller = async (payload) => unwrap(await api.post(`/Account/RegisterSeller`, payload));
+export const forgotPassword = async (payload) => unwrap(await api.post(`/Account/ForgotPassword`, payload));
+export const resetPassword = async (payload) => unwrap(await api.post(`/Account/ResetPassword`, payload));
+
+export const uploadReviewImage = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await api.post(`/Upload/ReviewImage`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+};

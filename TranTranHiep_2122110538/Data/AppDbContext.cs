@@ -18,11 +18,17 @@ public class AppDbContext : DbContext
     public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
     public DbSet<OrderPayment> OrderPayments => Set<OrderPayment>();
     public DbSet<FoodReview> FoodReviews => Set<FoodReview>();
+    public DbSet<RestaurantReview> RestaurantReviews => Set<RestaurantReview>();
     public DbSet<CartItem> CartItems => Set<CartItem>();
     public DbSet<OrderMessage> OrderMessages => Set<OrderMessage>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<Voucher> Vouchers => Set<Voucher>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<ModerationReport> ModerationReports => Set<ModerationReport>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<RestaurantOperatingHour> RestaurantOperatingHours => Set<RestaurantOperatingHour>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -106,6 +112,35 @@ public class AppDbContext : DbContext
             .HasForeignKey(r => r.UserId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<FoodReview>().HasIndex(r => new { r.OrderId, r.FoodId }).IsUnique();
+        modelBuilder.Entity<RestaurantReview>().HasIndex(r => new { r.OrderId, r.RestaurantId }).IsUnique();
+        modelBuilder.Entity<FoodReview>().Property(r => r.IsHidden).HasDefaultValue(false);
+        modelBuilder.Entity<RestaurantReview>().Property(r => r.IsHidden).HasDefaultValue(false);
+        modelBuilder.Entity<OrderMessage>().Property(m => m.IsHidden).HasDefaultValue(false);
+        modelBuilder.Entity<RestaurantReview>()
+            .HasOne(r => r.Order)
+            .WithMany(o => o.RestaurantReviews)
+            .HasForeignKey(r => r.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RestaurantReview>()
+            .HasOne(r => r.Restaurant)
+            .WithMany(r => r.Reviews)
+            .HasForeignKey(r => r.RestaurantId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RestaurantReview>()
+            .HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ModerationReport>()
+            .HasOne(r => r.Reporter)
+            .WithMany(u => u.ReportsAsReporter)
+            .HasForeignKey(r => r.ReporterUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ModerationReport>()
+            .HasOne(r => r.Moderator)
+            .WithMany(u => u.ReportsAsModerator)
+            .HasForeignKey(r => r.ModeratorUserId)
+            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<CartItem>()
             .HasOne(c => c.User)
             .WithMany(u => u.CartItems)
@@ -154,5 +189,15 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Voucher>().HasIndex(v => v.Code).IsUnique();
         modelBuilder.Entity<Voucher>().Property(v => v.MinOrderAmount).HasPrecision(18, 2);
         modelBuilder.Entity<Voucher>().Property(v => v.MaxDiscountAmount).HasPrecision(18, 2);
+
+        modelBuilder.Entity<SystemSetting>().HasKey(s => s.Key);
+        modelBuilder.Entity<SystemSetting>().Property(s => s.Key).HasMaxLength(100);
+
+        modelBuilder.Entity<RestaurantOperatingHour>()
+            .HasOne(h => h.Restaurant)
+            .WithMany()
+            .HasForeignKey(h => h.RestaurantId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RestaurantOperatingHour>().HasIndex(h => new { h.RestaurantId, h.DayOfWeek }).IsUnique();
     }
 }

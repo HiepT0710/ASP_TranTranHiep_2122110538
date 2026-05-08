@@ -31,8 +31,14 @@ public class Food
 
     public bool IsAvailable { get; set; } = true;
 
+    /// <summary>Ẩn món tạm thời khỏi menu nhưng vẫn giữ dữ liệu.</summary>
+    public bool IsHidden { get; set; }
+
     /// <summary>Số lượng tồn kho (món còn bán được).</summary>
     public int StockQuantity { get; set; }
+
+    [MaxLength(500)]
+    public string? SaleScheduleNote { get; set; }
 
     public ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
     public ICollection<FoodReview> Reviews { get; set; } = new List<FoodReview>();

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { registerSeller, registerUser } from "../services/apiService";
 import { getApiErrorMessage } from "../utils/errorMessage";
+import { isValidPhone, passwordStrength, validateRequired } from "../utils/formValidation";
 import { useToast } from "../context/ToastContext";
 
 const defaultUser = { username: "", password: "", fullName: "", email: "", phone: "", address: "" };
@@ -19,25 +20,103 @@ export default function RegisterPage() {
     e.preventDefault();
     setMsg("");
     setMsgType("");
-    try {
-      if (mode === "User") {
+
+    const current = mode === "User" ? userForm : sellerForm;
+    const requiredFields = [
+      { key: "username", value: current.username },
+      { key: "password", value: current.password },
+      { key: "fullName", value: current.fullName },
+      { key: "email", value: current.email },
+      { key: "phone", value: current.phone },
+      { key: "address", value: current.address },
+    ];
+    if (mode === "Seller") requiredFields.push({ key: "restaurantName", value: current.restaurantName });
+
+    const labels = {
+      username: "Username",
+      password: "Mật khẩu",
+      fullName: "Họ tên",
+      email: "Email",
+      phone: "Số điện thoại",
+      address: "Địa chỉ",
+      restaurantName: "Tên quán",
+    };
+
+    const missing = validateRequired(requiredFields, labels);
+    if (missing) {
+      const message = `Vui lòng nhập ${missing}`;
+      setMsg(message);
+      setMsgType("error");
+      pushToast(message, "error");
+      return;
+    }
+
+    if (current.username.trim().length < 3 || current.username.trim().length > 30) {
+      const message = "Username phải từ 3 đến 30 ký tự";
+      setMsg(message);
+      setMsgType("error");
+      pushToast(message, "error");
+      return;
+    }
+
+    const strength = passwordStrength(current.password);
+    if (!strength.ok) {
+      const message = "Mật khẩu phải có ít nhất 8 ký tự, gồm cả chữ và số";
+      setMsg(message);
+      setMsgType("error");
+      pushToast(message, "error");
+      return;
+    }
+
+    if (current.fullName.trim().length < 2) {
+      const message = "Họ tên phải có ít nhất 2 ký tự";
+      setMsg(message);
+      setMsgType("error");
+      pushToast(message, "error");
+      return;
+    }
+
+    if (!isValidPhone(current.phone)) {
+      const message = "Số điện thoại phải là số và có 9 đến 11 chữ số";
+      setMsg(message);
+      setMsgType("error");
+      pushToast(message, "error");
+      return;
+    }
+
+    if (mode === "User") {
+      try {
         const res = await registerUser(userForm);
         const message = res.message || "Đăng ký user thành công";
         setMsg(message);
         setMsgType("ok");
         pushToast(message, "success");
-      } else {
+      } catch (error) {
+        const message = getApiErrorMessage(error, "Đăng ký thất bại");
+        setMsg(message);
+        setMsgType("error");
+        pushToast(message, "error");
+      }
+    } else {
+      if (sellerForm.restaurantName.trim().length < 3) {
+        const message = "Tên quán phải có ít nhất 3 ký tự";
+        setMsg(message);
+        setMsgType("error");
+        pushToast(message, "error");
+        return;
+      }
+      try {
         const res = await registerSeller(sellerForm);
         const message = res.message || "Đăng ký seller thành công";
         setMsg(message);
         setMsgType("ok");
         pushToast(message, "success");
+      } catch (error) {
+        const message = getApiErrorMessage(error, "Đăng ký thất bại");
+        setMsg(message);
+        setMsgType("error");
+        pushToast(message, "error");
       }
-    } catch (error) {
-      const message = getApiErrorMessage(error, "Đăng ký thất bại");
-      setMsg(message);
-      setMsgType("error");
-      pushToast(message, "error");
     }
   };
 
@@ -56,17 +135,17 @@ export default function RegisterPage() {
         <button type="button" onClick={() => setMode("Seller")}>Seller</button>
       </div>
       <form className="form" onSubmit={submit}>
-        <input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-        <input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <input placeholder="Username" minLength={3} maxLength={30} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+        <input type="password" placeholder="Password" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <div className="split">
-          <input placeholder="Họ tên" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
-          <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input placeholder="Họ tên" minLength={2} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+          <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
         <div className="split">
-          <input placeholder="SĐT" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <input placeholder="Địa chỉ" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+          <input placeholder="SĐT" inputMode="numeric" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "") })} />
+          <input placeholder="Địa chỉ" minLength={5} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
         </div>
-        {mode === "Seller" && <input placeholder="Tên quán" value={sellerForm.restaurantName} onChange={(e) => setSellerForm({ ...sellerForm, restaurantName: e.target.value })} />}
+        {mode === "Seller" && <input placeholder="Tên quán" minLength={3} value={sellerForm.restaurantName} onChange={(e) => setSellerForm({ ...sellerForm, restaurantName: e.target.value })} />}
         <button type="submit">Đăng ký {mode}</button>
       </form>
       <div className="row" style={{ justifyContent: "space-between" }}>

@@ -59,11 +59,11 @@ public class RegisterSellerRequest
 
 public class UpdateProfileRequest
 {
-    [MaxLength(200)]
-    public string? FullName { get; set; }
+    [Required, MaxLength(200)]
+    public string FullName { get; set; } = string.Empty;
 
-    [EmailAddress, MaxLength(200)]
-    public string? Email { get; set; }
+    [Required, EmailAddress, MaxLength(200)]
+    public string Email { get; set; } = string.Empty;
 
     [MaxLength(50)]
     public string? Phone { get; set; }
@@ -77,8 +77,11 @@ public class ChangePasswordRequest
     [Required]
     public string CurrentPassword { get; set; } = string.Empty;
 
-    [Required, MinLength(6)]
+    [Required, MinLength(8)]
     public string NewPassword { get; set; } = string.Empty;
+
+    [Required, Compare(nameof(NewPassword))]
+    public string ConfirmPassword { get; set; } = string.Empty;
 }
 
 /// <summary>Đăng ký Web Push (trình duyệt).</summary>

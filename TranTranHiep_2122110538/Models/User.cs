@@ -27,8 +27,16 @@ public class User
     [MaxLength(500)]
     public string? Address { get; set; }
 
+    [MaxLength(500)]
+    public string? AvatarUrl { get; set; }
+
     [Required, MaxLength(50)]
     public string Role { get; set; } = "User";
+
+    public bool IsLocked { get; set; }
+
+    [MaxLength(500)]
+    public string? LockReason { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -41,4 +49,7 @@ public class User
     public ICollection<FoodReview> FoodReviews { get; set; } = new List<FoodReview>();
     public ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
     public ICollection<PushSubscription> PushSubscriptions { get; set; } = new List<PushSubscription>();
+    public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+    public ICollection<ModerationReport> ReportsAsReporter { get; set; } = new List<ModerationReport>();
+    public ICollection<ModerationReport> ReportsAsModerator { get; set; } = new List<ModerationReport>();
 }

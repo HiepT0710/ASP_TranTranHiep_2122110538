@@ -20,25 +20,29 @@ public class FoodController : Controller
 
     /// <summary>Danh mục của một quán (để lọc món trên UI).</summary>
     [HttpGet]
-    public async Task<IActionResult> Categories(int restaurantId)
+    public async Task<IActionResult> Categories(int? restaurantId = null, int? id = null)
     {
+        var targetRestaurantId = restaurantId ?? id;
+        if (!targetRestaurantId.HasValue)
+            return BadRequest(new { message = "Thiếu restaurantId." });
+
         var ok = await _db.Restaurants.AsNoTracking()
-            .AnyAsync(r => r.Id == restaurantId && r.Status == RestaurantStatuses.Approved);
+            .AnyAsync(r => r.Id == targetRestaurantId.Value && r.Status == RestaurantStatuses.Approved);
         if (!ok)
             return NotFound(new { message = "Không tìm thấy quán." });
 
         var items = await _db.Categories.AsNoTracking()
-            .Where(c => c.RestaurantId == restaurantId)
+            .Where(c => c.RestaurantId == targetRestaurantId.Value)
             .OrderBy(c => c.Name)
             .Select(c => new { c.Id, c.Name, c.Description })
             .ToListAsync();
 
-        return Ok(new { restaurantId, items });
+        return Ok(new { restaurantId = targetRestaurantId.Value, items });
     }
 
     /// <summary>Danh sách món từ quán đã duyệt — phân trang, lọc danh mục, tìm theo tên.</summary>
     [HttpGet]
-    public async Task<IActionResult> Index(int page = 1, int pageSize = 8, int? categoryId = null, int? restaurantId = null, string? q = null)
+    public async Task<IActionResult> Index(int page = 1, int pageSize = 8, int? categoryId = null, int? restaurantId = null, string? q = null, string? sortBy = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 5, 10);
@@ -60,9 +64,58 @@ public class FoodController : Controller
             query = query.Where(f => f.Name.Contains(term));
         }
 
+        if (string.Equals(sortBy, "rating_desc", StringComparison.OrdinalIgnoreCase))
+        {
+            var allRows = await query
+                .Select(f => new
+                {
+                    f.Id,
+                    f.Name,
+                    f.Price,
+                    f.Image,
+                    f.Description,
+                    f.CategoryId,
+                    CategoryName = f.Category!.Name,
+                    f.RestaurantId,
+                    RestaurantName = f.Restaurant!.Name,
+                    f.IsAvailable,
+                    f.IsOnSale,
+                    f.SalePercent,
+                    f.StockQuantity,
+                    reviewCount = f.Reviews.Count,
+                    avgRating = f.Reviews.Count == 0 ? (double?)null : f.Reviews.Average(r => (double)r.Rating)
+                })
+                .ToListAsync();
+
+            var ratingTotalRows = allRows.Count;
+            var ratingItems = allRows
+                .OrderByDescending(f => f.avgRating ?? 0)
+                .ThenBy(f => f.Name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            return Ok(new
+            {
+                page,
+                pageSize,
+                total = ratingTotalRows,
+                totalPages = (int)Math.Ceiling(ratingTotalRows / (double)pageSize),
+                items = ratingItems
+            });
+        }
+
+        if (string.Equals(sortBy, "name_desc", StringComparison.OrdinalIgnoreCase))
+            query = query.OrderByDescending(f => f.Name);
+        else if (string.Equals(sortBy, "price_asc", StringComparison.OrdinalIgnoreCase))
+            query = query.OrderBy(f => f.Price);
+        else if (string.Equals(sortBy, "price_desc", StringComparison.OrdinalIgnoreCase))
+            query = query.OrderByDescending(f => f.Price);
+        else
+            query = query.OrderBy(f => f.Name);
+
         var total = await query.CountAsync();
         var items = await query
-            .OrderBy(f => f.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(f => new
@@ -79,7 +132,9 @@ public class FoodController : Controller
                 f.IsAvailable,
                 f.IsOnSale,
                 f.SalePercent,
-                f.StockQuantity
+                f.StockQuantity,
+                reviewCount = f.Reviews.Count,
+                avgRating = f.Reviews.Count == 0 ? (double?)null : f.Reviews.Average(r => (double)r.Rating)
             })
             .ToListAsync();
 
@@ -121,10 +176,20 @@ public class FoodController : Controller
         if (food == null)
             return NotFound(new { message = "Không tìm thấy món." });
 
-        var reviewCount = await _db.FoodReviews.AsNoTracking().CountAsync(r => r.FoodId == id);
-        double? avgRating = reviewCount == 0
-            ? null
-            : await _db.FoodReviews.AsNoTracking().Where(r => r.FoodId == id).AverageAsync(r => (double)r.Rating);
+        var reviewCount = 0;
+        double? avgRating = null;
+        try
+        {
+            reviewCount = await _db.FoodReviews.AsNoTracking().CountAsync(r => r.FoodId == id);
+            avgRating = reviewCount == 0
+                ? null
+                : await _db.FoodReviews.AsNoTracking().Where(r => r.FoodId == id).AverageAsync(r => (double)r.Rating);
+        }
+        catch
+        {
+            reviewCount = 0;
+            avgRating = null;
+        }
 
         return Ok(new
         {
@@ -148,33 +213,49 @@ public class FoodController : Controller
 
     /// <summary>Đánh giá công khai theo món (phân trang).</summary>
     [HttpGet]
-    public async Task<IActionResult> Reviews(int foodId, int page = 1, int pageSize = 10)
+    public async Task<IActionResult> Reviews(int? foodId = null, int? id = null, int page = 1, int pageSize = 10, int? rating = null)
     {
-        var exists = await _db.Foods.AsNoTracking()
-            .AnyAsync(f => f.Id == foodId && f.IsAvailable && f.Restaurant!.Status == RestaurantStatuses.Approved);
-        if (!exists)
-            return NotFound(new { message = "Không tìm thấy món." });
+        var targetFoodId = foodId ?? id;
+        if (!targetFoodId.HasValue)
+            return BadRequest(new { message = "Thiếu foodId." });
 
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 5, 50);
+        try
+        {
+            var exists = await _db.Foods.AsNoTracking()
+                .AnyAsync(f => f.Id == targetFoodId.Value && f.IsAvailable && f.Restaurant!.Status == RestaurantStatuses.Approved);
+            if (!exists)
+                return NotFound(new { message = "Không tìm thấy món." });
 
-        var query = _db.FoodReviews.AsNoTracking()
-            .Where(r => r.FoodId == foodId)
-            .OrderByDescending(r => r.CreatedAt);
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 5, 50);
 
-        var total = await query.CountAsync();
-        var items = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(r => new
-            {
-                r.Rating,
-                r.Comment,
-                r.CreatedAt,
-                Username = r.User!.Username
-            })
-            .ToListAsync();
+            var query = _db.FoodReviews.AsNoTracking()
+                .Where(r => r.FoodId == targetFoodId.Value);
 
-        return Ok(new { foodId, page, pageSize, total, items });
+            if (rating.HasValue)
+                query = query.Where(r => r.Rating == rating.Value);
+
+            query = query.OrderByDescending(r => r.CreatedAt);
+
+            var total = await query.CountAsync();
+            var items = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(r => new
+                {
+                    r.Rating,
+                    r.Comment,
+                    r.ImageUrlsJson,
+                    r.CreatedAt,
+                    Username = r.User != null ? r.User.Username : "Ẩn danh"
+                })
+                .ToListAsync();
+
+            return Ok(new { foodId = targetFoodId.Value, page, pageSize, total, items });
+        }
+        catch
+        {
+            return Ok(new { foodId = targetFoodId.Value, page = Math.Max(1, page), pageSize = Math.Clamp(pageSize, 5, 50), total = 0, items = Array.Empty<object>() });
+        }
     }
 }

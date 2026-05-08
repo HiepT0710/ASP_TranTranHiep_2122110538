@@ -1,134 +1,78 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getBestFoods, getFoods, getSaleRestaurants, resolveImageUrl } from "../services/apiService";
-import { useAuth } from "../context/AuthContext";
+import { getBestFoods, getFoods, getRestaurants, getSaleRestaurants, resolveImageUrl } from "../services/apiService";
 import { SkeletonCardGrid } from "../components/PageStates";
 
 export default function HomePage() {
-  const { user } = useAuth();
-  const roleLabel = useMemo(() => user?.role || "Guest", [user]);
-  const [saleRestaurants, setSaleRestaurants] = useState([]);
-  const [saleFoods, setSaleFoods] = useState([]);
+  const [featuredRestaurants, setFeaturedRestaurants] = useState([]);
   const [bestFoods, setBestFoods] = useState([]);
+  const [saleFoods, setSaleFoods] = useState([]);
+  const [saleRestaurants, setSaleRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     Promise.all([
-      getSaleRestaurants(),
-      getFoods({ page: 1, pageSize: 6 }),
-      getBestFoods(6),
-    ]).then(([restaurantsRes, foodsRes, bestRes]) => {
+      getRestaurants({ page: 1, pageSize: 6, sortBy: "rating_desc" }).catch(() => ({ items: [] })),
+      getBestFoods(6).catch(() => ({ items: [] })),
+      getFoods({ page: 1, pageSize: 12, sortBy: "rating_desc" }).catch(() => ({ items: [] })),
+      getSaleRestaurants().catch(() => ({ items: [] })),
+    ]).then(([restaurantsRes, bestRes, foodsRes, saleRes]) => {
       if (!mounted) return;
-      setSaleRestaurants(restaurantsRes.items || []);
-      setSaleFoods((foodsRes.items || []).filter((x) => x.isOnSale));
+      const foods = foodsRes.items || [];
+      setFeaturedRestaurants(restaurantsRes.items || []);
       setBestFoods(bestRes.items || []);
+      setSaleFoods(foods.filter((item) => item.isOnSale).slice(0, 6));
+      setSaleRestaurants((saleRes.items || []).slice(0, 6));
       setLoading(false);
     }).catch(() => {
       if (mounted) setLoading(false);
     });
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   return (
-    <section className="page hero-card">
-      <div className="split" style={{ alignItems: "center" }}>
+    <section className="page hero-card home-page">
+      <div className="split hero-split" style={{ alignItems: "center" }}>
         <div>
           <p className="eyebrow">FoodOrder Platform</p>
-          <h1>Giao diện đặt món hiện đại, rõ ràng và đầy đủ chức năng</h1>
-          <p className="lead">
-            Khám phá quán đang sale, món bán chạy và nhanh chóng chuyển đến trang chi tiết chỉ với một cú click.
-          </p>
+          <h1>Đặt món nhanh, tìm quán rõ, ưu tiên nội dung quan trọng</h1>
+          <p className="lead">Nổi bật quán có đánh giá cao, món bán chạy và các khu vực đang giảm giá.</p>
           <div className="row">
-            <Link to="/restaurants"><button>Khám phá quán</button></Link>
-            <Link to="/foods"><button>Xem món ăn</button></Link>
+            <Link to="/restaurants" className="button">Xem quán ăn</Link>
+            <Link to="/foods" className="button secondary">Xem món ăn</Link>
           </div>
         </div>
-        <div className="panel">
+        <div className="panel hero-summary-panel">
+          <p className="eyebrow">Tổng quan</p>
           <div className="stat-grid">
-            <div className="stat-card"><span>User</span><strong>Đặt món</strong></div>
-            <div className="stat-card"><span>Seller</span><strong>Quản lý</strong></div>
-            <div className="stat-card"><span>Admin</span><strong>Điều phối</strong></div>
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <span className="badge">Vai trò hiện tại</span>
-            <p style={{ marginBottom: 0 }}><b>{roleLabel}</b></p>
+            <div className="stat-card"><span>Quán nổi bật</span><strong>{featuredRestaurants.length}</strong></div>
+            <div className="stat-card"><span>Món bán chạy</span><strong>{bestFoods.length}</strong></div>
+            <div className="stat-card"><span>Món đang sale</span><strong>{saleFoods.length}</strong></div>
+            <div className="stat-card"><span>Quán đang sale</span><strong>{saleRestaurants.length}</strong></div>
           </div>
         </div>
       </div>
 
-      <div className="page" style={{ marginTop: 20 }}>
-        <div className="page-header">
-          <div>
-            <p className="eyebrow">Sale nổi bật</p>
-            <h2>Quán và món đang sale</h2>
-          </div>
-        </div>
-        {loading ? (
-          <SkeletonCardGrid count={4} />
-        ) : (
-          <div className="cards">
-            {saleRestaurants.slice(0, 2).map((r) => (
-              <article key={`sr-${r.id}`} className="panel">
-                {r.coverImage && <img src={resolveImageUrl(r.coverImage)} alt={r.name} style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 16, marginBottom: 12 }} />}
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="badge">-{r.salePercent}%</span>
-                  <span className="muted">Quán</span>
-                </div>
-                <h3>{r.name}</h3>
-                <p className="muted">{r.address}</p>
-                <div className="card-actions">
-                  <div className="left">
-                    <Link to={`/restaurants/${r.id}`} className="link-btn">Xem quán</Link>
-                  </div>
-                </div>
-              </article>
-            ))}
-            {saleFoods.slice(0, 2).map((f) => (
-              <article key={`sf-${f.id}`} className="panel">
-                {f.image && <img src={resolveImageUrl(f.image)} alt={f.name} style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 16, marginBottom: 12 }} />}
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="badge">-{f.salePercent}%</span>
-                  <span className="muted">Món</span>
-                </div>
-                <h3>{f.name}</h3>
-                <p className="muted">{f.restaurantName}</p>
-                <div className="card-actions">
-                  <div className="left">
-                    <Link to={`/foods/${f.id}`} className="link-btn">Xem món</Link>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
+      <section className="home-section">
+        <div className="home-section-header"><h2>Quán ăn nổi bật</h2></div>
+        {loading ? <SkeletonCardGrid count={3} /> : <div className="cards">{featuredRestaurants.map((r) => (<article key={r.id} className="panel home-card">{r.coverImage ? <img src={resolveImageUrl(r.coverImage)} alt={r.name} className="home-card-image" /> : <div className="home-card-image empty">Chưa có ảnh</div>}<div className="row compact"><span className="badge">{r.avgRating ? `${Number(r.avgRating).toFixed(1)}★` : "Chưa có đánh giá"}</span>{r.isOnSale && <span className="badge">Sale -{r.salePercent}%</span>}</div><h3>{r.name}</h3><p className="muted">{r.address || "Chưa cập nhật địa chỉ"}</p><Link to={`/restaurants/${r.id}`} className="button secondary">Xem chi tiết</Link></article>))}</div>}
+      </section>
 
-      <div className="page" style={{ marginTop: 20 }}>
-        <div className="page-header">
-          <div>
-            <p className="eyebrow">Bán chạy</p>
-            <h2>Món có lượt mua cao</h2>
-          </div>
-        </div>
-        {loading ? <SkeletonCardGrid count={6} /> : (
-          <div className="cards">
-            {bestFoods.map((f) => (
-              <article key={`bf-${f.id}`} className="panel">
-                {f.image && <img src={resolveImageUrl(f.image)} alt={f.name} style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 16, marginBottom: 12 }} />}
-                <span className="badge">Bán chạy</span>
-                <h3>{f.name}</h3>
-                <p className="muted">{f.restaurantName}</p>
-                <div className="card-actions">
-                  <Link to={`/foods/${f.id}`} className="link-btn">Xem chi tiết</Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
+      <section className="home-section">
+        <div className="home-section-header"><h2>Món ăn bán chạy</h2></div>
+        {loading ? <SkeletonCardGrid count={3} /> : <div className="cards">{bestFoods.map((f) => (<article key={f.id} className="panel home-card">{f.image ? <img src={resolveImageUrl(f.image)} alt={f.name} className="home-card-image" /> : <div className="home-card-image empty">Chưa có ảnh</div>}<span className="badge">Bán chạy</span><h3>{f.name}</h3><p className="muted">{f.restaurantName}</p><Link to={`/foods/${f.id}`} className="button secondary">Xem chi tiết</Link></article>))}</div>}
+      </section>
+
+      <section className="home-section">
+        <div className="home-section-header"><h2>Món ăn đang sale</h2></div>
+        {loading ? <SkeletonCardGrid count={3} /> : <div className="cards">{saleFoods.map((f) => (<article key={f.id} className="panel home-card">{f.image ? <img src={resolveImageUrl(f.image)} alt={f.name} className="home-card-image" /> : <div className="home-card-image empty">Chưa có ảnh</div>}<span className="badge">Sale -{f.salePercent}%</span><h3>{f.name}</h3><p className="muted">{f.restaurantName}</p><Link to={`/foods/${f.id}`} className="button secondary">Xem chi tiết</Link></article>))}</div>}
+      </section>
+
+      <section className="home-section">
+        <div className="home-section-header"><h2>Quán đang sale</h2></div>
+        {loading ? <SkeletonCardGrid count={3} /> : <div className="cards">{saleRestaurants.map((r) => (<article key={r.id} className="panel home-card">{r.coverImage ? <img src={resolveImageUrl(r.coverImage)} alt={r.name} className="home-card-image" /> : <div className="home-card-image empty">Chưa có ảnh</div>}<span className="badge">Sale -{r.salePercent}%</span><h3>{r.name}</h3><p className="muted">{r.address || "Chưa cập nhật địa chỉ"}</p><Link to={`/restaurants/${r.id}`} className="button secondary">Xem chi tiết</Link></article>))}</div>}
+      </section>
     </section>
   );
 }

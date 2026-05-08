@@ -39,6 +39,7 @@ public class VouchersController : Controller
                 v.MaxDiscountAmount,
                 v.UsageLimit,
                 v.UsedCount,
+                v.PerUserLimit,
                 v.StartAt,
                 v.EndAt,
                 v.PromotionId,
@@ -68,6 +69,7 @@ public class VouchersController : Controller
             voucher.MaxDiscountAmount,
             voucher.UsageLimit,
             voucher.UsedCount,
+            voucher.PerUserLimit,
             voucher.StartAt,
             voucher.EndAt,
             voucher.PromotionId,
@@ -95,6 +97,7 @@ public class VouchersController : Controller
             MinOrderAmount = model.MinOrderAmount,
             MaxDiscountAmount = model.MaxDiscountAmount,
             UsageLimit = Math.Max(1, model.UsageLimit),
+            PerUserLimit = Math.Max(1, model.PerUserLimit),
             UsedCount = 0,
             StartAt = model.StartAt ?? promotion.StartAt,
             EndAt = model.EndAt ?? promotion.EndAt,
@@ -126,6 +129,7 @@ public class VouchersController : Controller
         voucher.MinOrderAmount = model.MinOrderAmount;
         voucher.MaxDiscountAmount = model.MaxDiscountAmount;
         voucher.UsageLimit = Math.Max(1, model.UsageLimit);
+        voucher.PerUserLimit = Math.Max(1, model.PerUserLimit);
         voucher.StartAt = model.StartAt ?? voucher.StartAt;
         voucher.EndAt = model.EndAt ?? voucher.EndAt;
         voucher.IsActive = model.IsActive;

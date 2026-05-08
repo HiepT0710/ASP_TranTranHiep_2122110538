@@ -21,17 +21,23 @@ public class AccountController : Controller
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IUserCartService _userCart;
     private readonly IConfiguration _config;
+    private readonly IWebHostEnvironment _env;
+    private readonly IEmailService _emailService;
 
     public AccountController(
         AppDbContext db,
         IPasswordHasher<User> passwordHasher,
         IUserCartService userCart,
-        IConfiguration config)
+        IConfiguration config,
+        IWebHostEnvironment env,
+        IEmailService emailService)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _userCart = userCart;
         _config = config;
+        _env = env;
+        _emailService = emailService;
     }
 
     [AllowAnonymous]
@@ -61,7 +67,6 @@ public class AccountController : Controller
         return Ok(new { message = "Đăng ký thành công.", userId = user.Id });
     }
 
-    /// <summary>Đăng ký Seller: tạo tài khoản + quán (Pending), chờ Admin duyệt.</summary>
     [AllowAnonymous]
     [HttpPost]
     public async Task<IActionResult> RegisterSeller([FromBody] RegisterSellerRequest model)
@@ -117,6 +122,9 @@ public class AccountController : Controller
         if (user == null)
             return Unauthorized(new { message = "Sai tài khoản hoặc mật khẩu." });
 
+        if (user.IsLocked)
+            return Unauthorized(new { message = string.IsNullOrWhiteSpace(user.LockReason) ? "Tài khoản đã bị khóa." : $"Tài khoản đã bị khóa. Lý do: {user.LockReason}" });
+
         var verify = _passwordHasher.VerifyHashedPassword(user, user.Password, model.Password);
         if (verify == PasswordVerificationResult.Failed)
             return Unauthorized(new { message = "Sai tài khoản hoặc mật khẩu." });
@@ -148,17 +156,7 @@ public class AccountController : Controller
         return Ok(new
         {
             message = "Đăng nhập thành công.",
-            user = new
-            {
-                user.Id,
-                user.Username,
-                user.Role,
-                user.FullName,
-                restaurantId,
-                restaurantStatus = user.Role == Roles.Seller
-                    ? await _db.Restaurants.AsNoTracking().Where(r => r.OwnerId == user.Id).Select(r => r.Status).FirstOrDefaultAsync()
-                    : null
-            }
+            user = await BuildProfileResponse(user.Id, restaurantId)
         });
     }
 
@@ -172,16 +170,12 @@ public class AccountController : Controller
 
     [Authorize]
     [HttpGet]
-    public IActionResult Me()
+    public async Task<IActionResult> Me()
     {
-        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var name = User.Identity?.Name;
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        var restaurantId = User.FindFirstValue(AuthClaims.RestaurantId);
-        return Ok(new { id, name, role, restaurantId });
+        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        return Ok(await BuildProfileResponse(id));
     }
 
-    /// <summary>Thông tin hồ sơ đầy đủ (không có mật khẩu).</summary>
     [Authorize]
     [HttpGet]
     public async Task<IActionResult> Profile()
@@ -191,17 +185,11 @@ public class AccountController : Controller
         if (u == null)
             return NotFound(new { message = "Không tìm thấy tài khoản." });
 
-        return Ok(new
-        {
-            u.Id,
-            u.Username,
-            u.FullName,
-            u.Email,
-            u.Phone,
-            u.Address,
-            u.Role,
-            u.CreatedAt
-        });
+        var restaurantId = u.Role == Roles.Seller
+            ? await _db.Restaurants.AsNoTracking().Where(r => r.OwnerId == u.Id).Select(r => (int?)r.Id).FirstOrDefaultAsync()
+            : null;
+
+        return Ok(await BuildProfileResponse(u.Id, restaurantId));
     }
 
     [Authorize]
@@ -216,23 +204,128 @@ public class AccountController : Controller
         if (u == null)
             return NotFound(new { message = "Không tìm thấy tài khoản." });
 
-        if (!string.IsNullOrWhiteSpace(model.FullName))
-            u.FullName = model.FullName.Trim();
-        u.Email = string.IsNullOrWhiteSpace(model.Email) ? u.Email : model.Email.Trim();
+        u.FullName = model.FullName.Trim();
+        u.Email = model.Email.Trim();
         u.Phone = model.Phone?.Trim();
         u.Address = model.Address?.Trim();
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Đã cập nhật hồ sơ.", u.Id, u.FullName, u.Email, u.Phone, u.Address });
+        return Ok(new { message = "Đã cập nhật hồ sơ." });
     }
 
-    /// <summary>Public key VAPID cho trình duyệt đăng ký Web Push (để nhận thông báo nền).</summary>
+    [Authorize]
+    [HttpPost]
+    [RequestSizeLimit(5_000_000)]
+    public async Task<IActionResult> Avatar([FromForm] UpdateAvatarRequest model)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var file = model.Avatar;
+        if (file.Length == 0)
+            return BadRequest(new { message = "Ảnh avatar không hợp lệ." });
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var allow = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+        if (!allow.Contains(ext))
+            return BadRequest(new { message = "Chỉ hỗ trợ jpg, jpeg, png, webp." });
+
+        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null)
+            return NotFound(new { message = "Không tìm thấy tài khoản." });
+
+        var uploadDir = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads", "avatars");
+        Directory.CreateDirectory(uploadDir);
+        var fileName = $"avatar_{id}_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(uploadDir, fileName);
+        await using (var stream = System.IO.File.Create(fullPath))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        u.AvatarUrl = $"/uploads/avatars/{fileName}";
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Đã cập nhật avatar.", avatarUrl = u.AvatarUrl });
+    }
+
+    [Authorize]
+    [HttpPost]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest model)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null)
+            return NotFound(new { message = "Không tìm thấy tài khoản." });
+
+        if (_passwordHasher.VerifyHashedPassword(u, u.Password, model.CurrentPassword) == PasswordVerificationResult.Failed)
+            return BadRequest(new { message = "Mật khẩu hiện tại không đúng." });
+
+        u.Password = _passwordHasher.HashPassword(u, model.NewPassword);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Đã đổi mật khẩu." });
+    }
+
+    [AllowAnonymous]
+    [HttpPost]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest model)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == model.Email.Trim());
+        if (user == null)
+            return Ok(new { message = "Nếu email tồn tại, mã đặt lại mật khẩu đã được gửi." });
+
+        var token = Convert.ToHexString(Guid.NewGuid().ToByteArray()).ToLowerInvariant();
+        _db.PasswordResetTokens.Add(new PasswordResetToken
+        {
+            UserId = user.Id,
+            Email = user.Email ?? model.Email.Trim(),
+            Token = token,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(30),
+            CreatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var frontendBaseUrl = _config["Frontend:BaseUrl"]?.TrimEnd('/');
+        var resetUrl = !string.IsNullOrWhiteSpace(frontendBaseUrl)
+            ? $"{frontendBaseUrl}/reset-password?email={Uri.EscapeDataString(model.Email.Trim())}&token={Uri.EscapeDataString(token)}"
+            : $"{Request.Scheme}://{Request.Host}/reset-password?email={Uri.EscapeDataString(model.Email.Trim())}&token={Uri.EscapeDataString(token)}";
+        await _emailService.SendAsync(model.Email.Trim(), "Đặt lại mật khẩu", $"<p>Bạn vừa yêu cầu đặt lại mật khẩu.</p><p>Vui lòng nhấn vào liên kết bên dưới để đặt lại mật khẩu.</p><p><a href='{resetUrl}'>Đặt lại mật khẩu</a></p>");
+
+        return Ok(new { message = "Nếu email tồn tại, mã đặt lại mật khẩu đã được gửi." });
+    }
+
+    [AllowAnonymous]
+    [HttpPost]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest model)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var resetToken = await _db.PasswordResetTokens
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.Email == model.Email.Trim() && x.Token == model.Token.Trim() && x.UsedAt == null && x.ExpiresAt > DateTime.UtcNow);
+
+        if (resetToken?.User == null)
+            return BadRequest(new { message = "Mã đặt lại không hợp lệ hoặc đã hết hạn." });
+
+        resetToken.User.Password = _passwordHasher.HashPassword(resetToken.User, model.NewPassword);
+        resetToken.UsedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Đã đặt lại mật khẩu thành công." });
+    }
+
     [Authorize]
     [HttpGet]
     public IActionResult WebPushPublicKey() =>
         Ok(new { publicKey = _config["WebPush:PublicKey"] ?? "" });
 
-    /// <summary>Lưu subscription Web Push (một user có nhiều thiết bị).</summary>
     [Authorize]
     [HttpPost]
     public async Task<IActionResult> RegisterPush([FromBody] PushSubscriptionRequest body)
@@ -278,28 +371,36 @@ public class AccountController : Controller
         return Ok(new { message = "Đã gỡ đăng ký push." });
     }
 
-    [Authorize]
-    [HttpPost]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest model)
-    {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
-        if (u == null)
-            return NotFound(new { message = "Không tìm thấy tài khoản." });
-
-        if (_passwordHasher.VerifyHashedPassword(u, u.Password, model.CurrentPassword) == PasswordVerificationResult.Failed)
-            return BadRequest(new { message = "Mật khẩu hiện tại không đúng." });
-
-        u.Password = _passwordHasher.HashPassword(u, model.NewPassword);
-        await _db.SaveChangesAsync();
-        return Ok(new { message = "Đã đổi mật khẩu." });
-    }
-
     [AllowAnonymous]
     [HttpGet]
     public IActionResult AccessDenied() =>
         StatusCode(403, new { message = "Bạn không có quyền truy cập." });
+
+    private async Task<object> BuildProfileResponse(int userId, int? restaurantId = null)
+    {
+        var u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
+        if (u == null)
+            return new { };
+
+        restaurantId ??= u.Role == Roles.Seller
+            ? await _db.Restaurants.AsNoTracking().Where(r => r.OwnerId == u.Id).Select(r => (int?)r.Id).FirstOrDefaultAsync()
+            : null;
+
+        return new
+        {
+            id = u.Id,
+            username = u.Username,
+            role = u.Role,
+            fullName = u.FullName,
+            email = u.Email,
+            phone = u.Phone,
+            address = u.Address,
+            avatarUrl = u.AvatarUrl,
+            createdAt = u.CreatedAt,
+            restaurantId,
+            restaurantStatus = u.Role == Roles.Seller
+                ? await _db.Restaurants.AsNoTracking().Where(r => r.OwnerId == u.Id).Select(r => r.Status).FirstOrDefaultAsync()
+                : null
+        };
+    }
 }

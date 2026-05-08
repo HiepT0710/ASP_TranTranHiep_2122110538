@@ -20,7 +20,7 @@ public class RestaurantController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index(int page = 1, int pageSize = 10, string? q = null)
+    public async Task<IActionResult> Index(int page = 1, int pageSize = 10, string? q = null, string? sortBy = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 5, 50);
@@ -34,9 +34,87 @@ public class RestaurantController : Controller
             query = query.Where(r => r.Name.Contains(term) || (r.Address != null && r.Address.Contains(term)));
         }
 
+        if (string.Equals(sortBy, "rating_desc", StringComparison.OrdinalIgnoreCase))
+        {
+            var allRows = await query
+                .Select(r => new
+                {
+                    r.Id,
+                    r.Name,
+                    r.Address,
+                    r.Phone,
+                    r.CoverImage,
+                    r.GalleryImage1,
+                    r.GalleryImage2,
+                    r.GalleryImage3,
+                    r.IsOnSale,
+                    r.SalePercent,
+                    AvgRating = r.Reviews.Count == 0 ? 0 : r.Reviews.Average(rv => (double)rv.Rating)
+                })
+                .ToListAsync();
+
+            var ratingTotalRows = allRows.Count;
+            var sortedRows = allRows
+                .OrderByDescending(r => r.AvgRating)
+                .ThenBy(r => r.Name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var sortedIds = sortedRows.Select(r => r.Id).ToList();
+            var ratingFoodCountRows = await _db.Foods.AsNoTracking()
+                .Where(f => sortedIds.Contains(f.RestaurantId) && f.IsAvailable)
+                .GroupBy(f => f.RestaurantId)
+                .Select(g => new { RestaurantId = g.Key, Count = g.Count() })
+                .ToListAsync();
+            var ratingFoodCountMap = ratingFoodCountRows.ToDictionary(x => x.RestaurantId, x => x.Count);
+
+            Dictionary<int, dynamic> ratingReviewMap = new();
+            try
+            {
+                var ratingReviewRows = await _db.RestaurantReviews.AsNoTracking()
+                    .Where(rv => sortedIds.Contains(rv.RestaurantId))
+                    .GroupBy(rv => rv.RestaurantId)
+                    .Select(g => new { RestaurantId = g.Key, Count = g.Count(), Avg = g.Average(x => (double)x.Rating) })
+                    .ToListAsync();
+                ratingReviewMap = ratingReviewRows.ToDictionary(x => x.RestaurantId, x => (dynamic)new { x.Count, Avg = (double?)x.Avg });
+            }
+            catch
+            {
+                ratingReviewMap = new Dictionary<int, dynamic>();
+            }
+
+            var ratingItems = sortedRows.Select(r => new
+            {
+                r.Id,
+                r.Name,
+                r.Address,
+                r.Phone,
+                r.CoverImage,
+                r.GalleryImage1,
+                r.GalleryImage2,
+                r.GalleryImage3,
+                r.IsOnSale,
+                r.SalePercent,
+                foodCount = ratingFoodCountMap.GetValueOrDefault(r.Id),
+                reviewCount = ratingReviewMap.GetValueOrDefault(r.Id)?.Count ?? 0,
+                avgRating = ratingReviewMap.GetValueOrDefault(r.Id)?.Avg
+            }).ToList();
+
+            return Ok(new { page, pageSize, total = ratingTotalRows, items = ratingItems });
+        }
+
+        if (string.Equals(sortBy, "name_desc", StringComparison.OrdinalIgnoreCase))
+            query = query.OrderByDescending(r => r.Name);
+        else if (string.Equals(sortBy, "newest", StringComparison.OrdinalIgnoreCase))
+            query = query.OrderByDescending(r => r.Id);
+        else if (string.Equals(sortBy, "oldest", StringComparison.OrdinalIgnoreCase))
+            query = query.OrderBy(r => r.Id);
+        else
+            query = query.OrderBy(r => r.Name);
+
         var total = await query.CountAsync();
         var pageList = await query
-            .OrderBy(r => r.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(r => new { r.Id, r.Name, r.Address, r.Phone, r.CoverImage, r.GalleryImage1, r.GalleryImage2, r.GalleryImage3, r.IsOnSale, r.SalePercent })
@@ -50,6 +128,21 @@ public class RestaurantController : Controller
             .ToListAsync();
         var countMap = countRows.ToDictionary(x => x.RestaurantId, x => x.Count);
 
+        Dictionary<int, dynamic> ratingMap = new();
+        try
+        {
+            var ratingRows = await _db.RestaurantReviews.AsNoTracking()
+                .Where(rv => rids.Contains(rv.RestaurantId))
+                .GroupBy(rv => rv.RestaurantId)
+                .Select(g => new { RestaurantId = g.Key, Count = g.Count(), Avg = g.Average(x => (double)x.Rating) })
+                .ToListAsync();
+            ratingMap = ratingRows.ToDictionary(x => x.RestaurantId, x => (dynamic)new { x.Count, Avg = (double?)x.Avg });
+        }
+        catch
+        {
+            ratingMap = new Dictionary<int, dynamic>();
+        }
+
         var items = pageList.Select(r => new
         {
             r.Id,
@@ -62,7 +155,9 @@ public class RestaurantController : Controller
             r.GalleryImage3,
             r.IsOnSale,
             r.SalePercent,
-            foodCount = countMap.GetValueOrDefault(r.Id)
+            foodCount = countMap.GetValueOrDefault(r.Id),
+            reviewCount = ratingMap.GetValueOrDefault(r.Id)?.Count ?? 0,
+            avgRating = ratingMap.GetValueOrDefault(r.Id)?.Avg
         }).ToList();
 
         return Ok(new { page, pageSize, total, items });
@@ -134,6 +229,21 @@ public class RestaurantController : Controller
         var foodCount = await _db.Foods.CountAsync(f => f.RestaurantId == id && f.IsAvailable);
         var categoryCount = await _db.Categories.CountAsync(c => c.RestaurantId == id);
 
+        var reviewCount = 0;
+        double? avgRating = null;
+        try
+        {
+            reviewCount = await _db.RestaurantReviews.AsNoTracking().CountAsync(rv => rv.RestaurantId == id);
+            avgRating = reviewCount == 0
+                ? (double?)null
+                : await _db.RestaurantReviews.AsNoTracking().Where(rv => rv.RestaurantId == id).AverageAsync(rv => (double)rv.Rating);
+        }
+        catch
+        {
+            reviewCount = 0;
+            avgRating = null;
+        }
+
         return Ok(new
         {
             r.Id,
@@ -147,7 +257,55 @@ public class RestaurantController : Controller
             r.IsOnSale,
             r.SalePercent,
             foodCount,
-            categoryCount
+            categoryCount,
+            reviewCount,
+            avgRating
         });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Reviews(int? restaurantId = null, int? id = null, int page = 1, int pageSize = 10, int? rating = null)
+    {
+        var targetRestaurantId = restaurantId ?? id;
+        if (!targetRestaurantId.HasValue)
+            return BadRequest(new { message = "Thiếu restaurantId." });
+
+        try
+        {
+            var exists = await _db.Restaurants.AsNoTracking().AnyAsync(r => r.Id == targetRestaurantId.Value && r.Status == RestaurantStatuses.Approved);
+            if (!exists)
+                return NotFound(new { message = "Không tìm thấy quán." });
+
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 5, 50);
+
+            var query = _db.RestaurantReviews.AsNoTracking()
+                .Where(r => r.RestaurantId == targetRestaurantId.Value);
+
+            if (rating.HasValue)
+                query = query.Where(r => r.Rating == rating.Value);
+
+            query = query.OrderByDescending(r => r.CreatedAt);
+
+            var total = await query.CountAsync();
+            var items = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(r => new
+                {
+                    r.Rating,
+                    r.Comment,
+                    r.ImageUrlsJson,
+                    r.CreatedAt,
+                    Username = r.User != null ? r.User.Username : "Ẩn danh"
+                })
+                .ToListAsync();
+
+            return Ok(new { restaurantId = targetRestaurantId.Value, page, pageSize, total, items });
+        }
+        catch
+        {
+            return Ok(new { restaurantId = targetRestaurantId.Value, page = Math.Max(1, page), pageSize = Math.Clamp(pageSize, 5, 50), total = 0, items = Array.Empty<object>() });
+        }
     }
 }

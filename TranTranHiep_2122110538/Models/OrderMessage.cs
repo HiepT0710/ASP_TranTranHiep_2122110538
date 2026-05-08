@@ -16,5 +16,8 @@ public class OrderMessage
     [Required, MaxLength(4000)]
     public string Message { get; set; } = string.Empty;
 
+    public bool IsHidden { get; set; }
+    public string? HiddenReason { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

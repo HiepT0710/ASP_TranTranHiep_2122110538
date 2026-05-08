@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getMe, login, logout } from "../services/apiService";
 
 const AuthContext = createContext(null);
@@ -7,20 +7,22 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshMe = async () => {
+  const refreshMe = useCallback(async () => {
     try {
       const me = await getMe();
       setUser(me);
+      return me;
     } catch {
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshMe();
-  }, []);
+  }, [refreshMe]);
 
   const value = useMemo(
     () => ({
@@ -28,7 +30,8 @@ export function AuthProvider({ children }) {
       loading,
       isAuthenticated: !!user,
       login: async (payload) => {
-        await login(payload);
+        const result = await login(payload);
+        if (result?.user) setUser(result.user);
         await refreshMe();
       },
       logout: async () => {
@@ -37,7 +40,7 @@ export function AuthProvider({ children }) {
       },
       refreshMe,
     }),
-    [user, loading]
+    [user, loading, refreshMe]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

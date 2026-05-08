@@ -27,6 +27,10 @@ public class Voucher
 
     public int UsedCount { get; set; }
 
+    /// <summary>Số lần dùng tối đa cho mỗi người dùng.</summary>
+    [Range(1, 100)]
+    public int PerUserLimit { get; set; } = 1;
+
     public DateTime StartAt { get; set; } = DateTime.UtcNow;
 
     public DateTime EndAt { get; set; } = DateTime.UtcNow.AddDays(30);
